@@ -5,7 +5,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.join(__dirname, '..');
-const files = ['sw.js', 'server/server.js']
+const files = ['sw.js']
+  .concat(fs.readdirSync(path.join(root, 'server')).filter(f => f.endsWith('.js')).map(f => 'server/' + f))
   .concat(fs.readdirSync(path.join(root, 'js')).filter(f => f.endsWith('.js')).map(f => 'js/' + f));
 let failed = 0;
 for (const f of files) {

@@ -161,7 +161,7 @@ yvo/
 
 ## v2.1 — synchronisation, reçus, commissions, alertes
 
-- **Serveur** (`server/server.js`, Node 22, aucune dépendance) : `npm start`. Variables : `PORT`, `DATA_DIR` (disque persistant), `SETUP_CODE` (code pour créer le premier espace), `REGISTRATION=closed`. Docker : `Dockerfile` ; Render : `render.yaml` (disque monté sur `/data`).
+- **Serveur** (`server/server.js`, Node 22 + PostgreSQL via `pg`) : `npm start`. Un seul compte, « yvo ». Variables : `DATABASE_URL` (défaut `postgres://yvo:yvo@localhost:5442/yvo`), `PORT` (8080), `YVO_PASSWORD` (lu uniquement au premier démarrage pour créer le compte). Changer le mot de passe (déconnecte tous les appareils) : `npm run set-password -- <nouveau-mot-de-passe>`. VPS : `cp .env.example .env` puis `docker compose up -d --build`. Tests : base `yvo_test` (ou `TEST_DATABASE_URL`), remise à zéro à chaque lancement.
 - **Synchronisation** : écran « Synchronisation » (connexion / création d'espace, appareils, audit). Hors ligne, les modifications attendent puis partent seules.
 - **Reçus** : un reçu numéroté avec code de contrôle à chaque versement ; page publique de vérification `/r/<jeton>`.
 - **Commissions** : barèmes configurables (par versement, par période, à la clôture ; %, fixe, jours), figés sur chaque carte.

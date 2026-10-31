@@ -1,70 +1,56 @@
 'use strict';
 
 /* ============================================================
-   YVO Épargne — serveur de synchronisation (zéro dépendance)
-   Node 22+ : http + node:sqlite + crypto.
+   YVO Épargne — serveur de synchronisation (PostgreSQL)
+   Node 22+ : http + crypto + pg.
 
    - Sert l'application (fichiers statiques) ET l'API sur la même adresse
-   - Comptes protégés par mot de passe (scrypt), jetons par appareil
+   - Un seul compte : « yvo », protégé par mot de passe (scrypt), jetons par appareil
    - Synchronisation par enregistrement avec détection de conflits
    - Journal d'audit IMMUABLE : chaque changement est conservé
    - Reçus publics vérifiables : GET /r/<jeton>
-   - Sauvegarde quotidienne de la base (14 jours conservés)
+
+   Variables : DATABASE_URL, PORT, YVO_PASSWORD (premier démarrage uniquement).
    ============================================================ */
 
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { DatabaseSync } = require('node:sqlite');
 const ReceiptCode = require('../js/receipt-code.js');
+const { DATABASE_URL, ACCOUNT_NAME, createPool, hashPassword, ensureSchema, setPassword } = require('./db.js');
 
 const PORT = Number(process.env.PORT) || 8080;
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
-const SETUP_CODE = process.env.SETUP_CODE || '';          // protège la création de compte
-const REGISTRATION = (process.env.REGISTRATION || 'open'); // open | closed (après création)
 const APP_DIR = path.resolve(__dirname, '..');
 const MAX_BODY = 8 * 1024 * 1024;
 const BATCH = 1500;
 
-fs.mkdirSync(path.join(DATA_DIR, 'backups'), { recursive: true });
-const db = new DatabaseSync(path.join(DATA_DIR, 'yvo.db'));
-db.exec(`
-  PRAGMA journal_mode = WAL;
-  PRAGMA synchronous = FULL;
-  CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, name TEXT UNIQUE NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, created_at TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL, device_id TEXT, device_name TEXT, created_at TEXT NOT NULL, last_seen TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS records (account_id TEXT NOT NULL, kind TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0, rev INTEGER NOT NULL, u INTEGER NOT NULL, seq INTEGER NOT NULL, PRIMARY KEY (account_id, kind, id));
-  CREATE INDEX IF NOT EXISTS records_seq ON records (account_id, seq);
-  CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY AUTOINCREMENT, account_id TEXT NOT NULL, at TEXT NOT NULL, device_id TEXT, device_name TEXT, kind TEXT NOT NULL, rec_id TEXT NOT NULL, op TEXT NOT NULL, data TEXT, note TEXT);
-  CREATE INDEX IF NOT EXISTS events_rec ON events (account_id, kind, rec_id);
-  CREATE TABLE IF NOT EXISTS public_receipts (token TEXT PRIMARY KEY, account_id TEXT NOT NULL, rec_id TEXT NOT NULL);
-`);
-
 const KINDS = ['clients', 'cartes', 'versements', 'operations', 'activity', 'trash', 'clotures', 'recus', 'settings'];
 const IMMUTABLE = { recus: true, activity: true };
 
-const q = {
-  accountByName: db.prepare('SELECT * FROM accounts WHERE name = ?'),
-  accountCount: db.prepare('SELECT COUNT(*) AS n FROM accounts'),
-  insertAccount: db.prepare('INSERT INTO accounts (id, name, salt, hash, created_at) VALUES (?,?,?,?,?)'),
-  insertSession: db.prepare('INSERT INTO sessions (token_hash, account_id, device_id, device_name, created_at, last_seen) VALUES (?,?,?,?,?,?)'),
-  sessionByHash: db.prepare('SELECT * FROM sessions WHERE token_hash = ?'),
-  touchSession: db.prepare('UPDATE sessions SET last_seen = ? WHERE token_hash = ?'),
-  deleteSession: db.prepare('DELETE FROM sessions WHERE token_hash = ?'),
-  getRecord: db.prepare('SELECT * FROM records WHERE account_id = ? AND kind = ? AND id = ?'),
-  upsertRecord: db.prepare('INSERT INTO records (account_id, kind, id, data, deleted, rev, u, seq) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(account_id, kind, id) DO UPDATE SET data=excluded.data, deleted=excluded.deleted, rev=excluded.rev, u=excluded.u, seq=excluded.seq'),
-  insertEvent: db.prepare('INSERT INTO events (account_id, at, device_id, device_name, kind, rec_id, op, data, note) VALUES (?,?,?,?,?,?,?,?,?)'),
-  since: db.prepare('SELECT kind, id, data, deleted, rev, seq FROM records WHERE account_id = ? AND seq > ? ORDER BY seq LIMIT ?'),
-  head: db.prepare('SELECT COALESCE(MAX(seq),0) AS s FROM records WHERE account_id = ?'),
-  audit: db.prepare('SELECT seq, at, device_name, kind, rec_id, op, note FROM events WHERE account_id = ? ORDER BY seq DESC LIMIT ?'),
-  auditRec: db.prepare('SELECT seq, at, device_name, kind, rec_id, op, data, note FROM events WHERE account_id = ? AND kind = ? AND rec_id = ? ORDER BY seq DESC LIMIT 100'),
-  allRecords: db.prepare('SELECT kind, id, data, deleted, rev FROM records WHERE account_id = ? AND deleted = 0'),
-  counts: db.prepare('SELECT kind, COUNT(*) AS n FROM records WHERE account_id = ? AND deleted = 0 GROUP BY kind'),
-  insertPublic: db.prepare('INSERT OR IGNORE INTO public_receipts (token, account_id, rec_id) VALUES (?,?,?)'),
-  publicByToken: db.prepare('SELECT * FROM public_receipts WHERE token = ?'),
-  devices: db.prepare('SELECT device_id, device_name, created_at, last_seen FROM sessions WHERE account_id = ? ORDER BY last_seen DESC')
-};
+const pool = createPool();
+
+/* Schéma + compte unique. YVO_PASSWORD n'est lu que si aucun compte n'existe encore. */
+async function init() {
+  await ensureSchema(pool);
+  const r = await pool.query('SELECT id FROM accounts WHERE name = $1', [ACCOUNT_NAME]);
+  if (r.rows.length) return;
+  const password = process.env.YVO_PASSWORD || '';
+  if (!password) {
+    const err = new Error('Premier démarrage : aucun compte n’existe. Définissez la variable YVO_PASSWORD (mot de passe d’Yvo) puis relancez le serveur.');
+    err.fatal = true;
+    throw err;
+  }
+  if (password.length < 6) {
+    const err = new Error('YVO_PASSWORD est trop court (6 caractères minimum).');
+    err.fatal = true;
+    throw err;
+  }
+  await setPassword(pool, password);
+  console.log('Compte « ' + ACCOUNT_NAME + ' » créé.');
+}
+const ready = init();
+ready.catch(function () {}); // l'erreur est traitée par l'appelant (voir bas du fichier)
 
 /* ---------- utilitaires ---------- */
 
@@ -102,40 +88,34 @@ function readBody(req) {
   });
 }
 
-/* limitation des tentatives de connexion */
+/* limitation des tentatives de connexion (par adresse IP) */
 const attempts = new Map();
 function tooMany(key) {
   const now = Date.now();
   const list = (attempts.get(key) || []).filter(function (t) { return now - t < 10 * 60 * 1000; });
-  attempts.set(key, list);
+  if (list.length) attempts.set(key, list); else attempts.delete(key);
   return list.length >= 10;
 }
 function noteAttempt(key) { const l = attempts.get(key) || []; l.push(Date.now()); attempts.set(key, l); }
 
-function hashPassword(password, salt) {
-  return crypto.scryptSync(password, salt, 64).toString('hex');
-}
-
-function auth(req) {
+async function auth(req) {
   const h = String(req.headers.authorization || '');
   const m = /^Bearer\s+([a-f0-9]{64})$/i.exec(h);
   if (!m) return null;
-  const hash = sha256(m[1]);
-  const s = q.sessionByHash.get(hash);
-  if (!s) return null;
-  q.touchSession.run(nowIso(), hash);
-  return s;
+  const r = await pool.query('UPDATE sessions SET last_seen = now() WHERE token_hash = $1 RETURNING *', [sha256(m[1])]);
+  return r.rows[0] || null;
 }
 
-function newSession(accountId, device) {
+async function newSession(accountId, device) {
   const token = crypto.randomBytes(32).toString('hex');
-  q.insertSession.run(sha256(token), accountId, String(device.id || '').slice(0, 64), String(device.name || 'Appareil').slice(0, 60), nowIso(), nowIso());
+  await pool.query('INSERT INTO sessions (token_hash, account_id, device_id, device_name) VALUES ($1, $2, $3, $4)',
+    [sha256(token), accountId, String(device.id || '').slice(0, 64), String(device.name || 'Appareil').slice(0, 60)]);
   return token;
 }
 
 /* ---------- synchronisation ---------- */
 
-function applyChanges(session, changes) {
+async function applyChanges(session, changes) {
   const applied = [];
   const conflicts = [];
   const forced = [];
@@ -143,76 +123,94 @@ function applyChanges(session, changes) {
   const dev = [session.device_id, session.device_name];
   const nowMs = Date.now();
 
-  db.exec('BEGIN IMMEDIATE');
+  const c = await pool.connect();
+  const event = async function (kind, id, op, dataStr, note) {
+    const r = await c.query('INSERT INTO events (account_id, device_id, device_name, kind, rec_id, op, data, note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING seq',
+      [acc, dev[0], dev[1], kind, id, op, dataStr, note]);
+    return r.rows[0].seq;
+  };
   try {
-    changes.forEach(function (ch) {
-      if (!ch || KINDS.indexOf(ch.kind) < 0 || !ch.id || typeof ch.id !== 'string') return;
+    await c.query('BEGIN');
+    // un seul envoi à la fois par compte : les seq sont attribués et validés dans l'ordre
+    await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', [acc]);
+    for (const ch of changes) {
+      if (!ch || KINDS.indexOf(ch.kind) < 0 || !ch.id || typeof ch.id !== 'string') continue;
       const id = ch.id.slice(0, 80);
       const u = Math.min(Number(ch.u) || nowMs, nowMs + 5 * 60 * 1000);
-      const deleted = ch.deleted ? 1 : 0;
+      const deleted = !!ch.deleted;
       const dataStr = JSON.stringify(ch.data == null ? null : ch.data);
-      const cur = q.getRecord.get(acc, ch.kind, id);
+      const cur = (await c.query('SELECT * FROM records WHERE account_id = $1 AND kind = $2 AND id = $3', [acc, ch.kind, id])).rows[0];
 
       if (IMMUTABLE[ch.kind] && cur) {
         if (cur.data !== dataStr || deleted) {
-          q.insertEvent.run(acc, nowIso(), dev[0], dev[1], ch.kind, id, 'rejected', dataStr, 'Modification refusée : cet élément est immuable (traçabilité).');
+          await event(ch.kind, id, 'rejected', dataStr, 'Modification refusée : cet élément est immuable (traçabilité).');
         }
         applied.push({ kind: ch.kind, id: id, rev: cur.rev, serverWon: true });
-        forced.push({ kind: ch.kind, id: id, data: JSON.parse(cur.data), deleted: !!cur.deleted, rev: cur.rev });
-        return;
+        forced.push({ kind: ch.kind, id: id, data: JSON.parse(cur.data), deleted: cur.deleted, rev: cur.rev });
+        continue;
       }
 
       if (cur && !deleted && !cur.deleted && cur.data === dataStr) {
         applied.push({ kind: ch.kind, id: id, rev: cur.rev });
-        return;
+        continue;
       }
 
       if (cur && cur.rev !== (Number(ch.baseRev) || 0)) {
         // l'enregistrement a changé ailleurs depuis la dernière synchronisation de cet appareil
         const mineWins = u >= cur.u;
-        q.insertEvent.run(acc, nowIso(), dev[0], dev[1], ch.kind, id, 'conflict', dataStr,
+        await event(ch.kind, id, 'conflict', dataStr,
           'Conflit : version de ' + dev[1] + ' ' + (mineWins ? 'retenue (plus récente)' : 'non retenue (plus ancienne)') + '. Les deux versions sont conservées dans l’historique.');
         conflicts.push({ kind: ch.kind, id: id, winner: mineWins ? 'device' : 'server', at: nowIso() });
         if (!mineWins) {
           applied.push({ kind: ch.kind, id: id, rev: cur.rev, serverWon: true });
-          forced.push({ kind: ch.kind, id: id, data: JSON.parse(cur.data), deleted: !!cur.deleted, rev: cur.rev });
-          return;
+          forced.push({ kind: ch.kind, id: id, data: JSON.parse(cur.data), deleted: cur.deleted, rev: cur.rev });
+          continue;
         }
       }
 
       const rev = (cur ? cur.rev : 0) + 1;
       const op = !cur ? 'created' : deleted ? 'deleted' : 'updated';
-      const r = q.insertEvent.run(acc, nowIso(), dev[0], dev[1], ch.kind, id, op, dataStr, null);
-      const seq = Number(r.lastInsertRowid);
-      q.upsertRecord.run(acc, ch.kind, id, dataStr, deleted, rev, u, seq);
+      const seq = await event(ch.kind, id, op, dataStr, null);
+      await c.query('INSERT INTO records (account_id, kind, id, data, deleted, rev, u, seq) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ' +
+        'ON CONFLICT (account_id, kind, id) DO UPDATE SET data = EXCLUDED.data, deleted = EXCLUDED.deleted, rev = EXCLUDED.rev, u = EXCLUDED.u, seq = EXCLUDED.seq',
+        [acc, ch.kind, id, dataStr, deleted, rev, u, seq]);
       applied.push({ kind: ch.kind, id: id, rev: rev });
 
-      if (ch.kind === 'recus' && ch.data && ch.data.token) q.insertPublic.run(String(ch.data.token), acc, id);
-    });
-    db.exec('COMMIT');
+      if (ch.kind === 'recus' && ch.data && ch.data.token) {
+        await c.query('INSERT INTO public_receipts (token, account_id, rec_id) VALUES ($1,$2,$3) ON CONFLICT (token) DO NOTHING', [String(ch.data.token), acc, id]);
+      }
+    }
+    await c.query('COMMIT');
   } catch (e) {
-    db.exec('ROLLBACK');
+    await c.query('ROLLBACK').catch(function () {});
     throw e;
+  } finally {
+    c.release();
   }
   return { applied: applied, conflicts: conflicts, forced: forced };
 }
 
-function handleSync(session, body) {
+async function head(accountId) {
+  return (await pool.query('SELECT COALESCE(MAX(seq), 0) AS s FROM records WHERE account_id = $1', [accountId])).rows[0].s;
+}
+
+async function handleSync(session, body) {
   const changes = Array.isArray(body.changes) ? body.changes.slice(0, BATCH) : [];
   const since = Number(body.since) || 0;
-  const res = applyChanges(session, changes);
-  const rows = q.since.all(session.account_id, since, BATCH);
+  const res = await applyChanges(session, changes);
+  const rows = (await pool.query('SELECT kind, id, data, deleted, rev, seq FROM records WHERE account_id = $1 AND seq > $2 ORDER BY seq LIMIT $3',
+    [session.account_id, since, BATCH])).rows;
   const own = {};
   res.applied.forEach(function (a) { own[a.kind + ':' + a.id] = true; });
   const out = [];
   rows.forEach(function (r) {
     const k = r.kind + ':' + r.id;
     if (own[k]) return; // déjà connu de l'appareil (il vient de l'envoyer)
-    out.push({ kind: r.kind, id: r.id, data: JSON.parse(r.data), deleted: !!r.deleted, rev: r.rev, seq: r.seq });
+    out.push({ kind: r.kind, id: r.id, data: JSON.parse(r.data), deleted: r.deleted, rev: r.rev, seq: r.seq });
   });
   res.forced.forEach(function (f) { out.push(f); });
   const more = rows.length >= BATCH;
-  const seq = more ? rows[rows.length - 1].seq : q.head.get(session.account_id).s;
+  const seq = more ? rows[rows.length - 1].seq : await head(session.account_id);
   return { ok: true, seq: seq, more: more, applied: res.applied, conflicts: res.conflicts, changes: out, serverTime: Date.now() };
 }
 
@@ -274,79 +272,85 @@ function serveStatic(req, res, pathname) {
   });
 }
 
+
 /* ---------- routes ---------- */
+
+const API_ROUTES = { '/api/health': 1, '/api/login': 1, '/api/sync': 1, '/api/logout': 1, '/api/me': 1, '/api/audit': 1, '/api/export': 1 };
 
 async function route(req, res) {
   const url = new URL(req.url, 'http://x');
   const p = url.pathname;
-  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  // derrière un proxy inverse, la DERNIÈRE adresse de X-Forwarded-For est celle ajoutée par le proxy (non falsifiable)
+  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',').pop().trim();
 
-  if (p === '/api/health') return send(res, 200, { ok: true, time: nowIso(), accounts: q.accountCount.get().n });
-
-  if (p === '/api/register' && req.method === 'POST') {
-    const b = await readBody(req);
-    const name = String(b.name || '').trim().toLowerCase();
-    const password = String(b.password || '');
-    if (!/^[a-z0-9._-]{3,40}$/.test(name)) return send(res, 400, { error: 'Nom d’espace invalide (3 à 40 lettres, chiffres, . _ -).' });
-    if (password.length < 6) return send(res, 400, { error: 'Mot de passe trop court (6 caractères minimum).' });
-    if (SETUP_CODE && String(b.setupCode || '') !== SETUP_CODE) return send(res, 403, { error: 'Code d’installation incorrect.' });
-    if (REGISTRATION === 'closed' && q.accountCount.get().n > 0) return send(res, 403, { error: 'La création d’espace est fermée sur ce serveur.' });
-    if (q.accountByName.get(name)) return send(res, 409, { error: 'Cet espace existe déjà. Utilisez « Se connecter ».' });
-    const id = crypto.randomUUID();
-    const salt = crypto.randomBytes(16).toString('hex');
-    q.insertAccount.run(id, name, salt, hashPassword(password, salt), nowIso());
-    const token = newSession(id, b.device || {});
-    return send(res, 200, { ok: true, token: token, account: name });
+  if (p === '/api/health') {
+    try {
+      await ready;
+      await pool.query('SELECT 1');
+      return send(res, 200, { ok: true, time: nowIso(), db: true });
+    } catch (e) {
+      return send(res, 503, { ok: false });
+    }
   }
+
+  if (p.indexOf('/api/') === 0 && !API_ROUTES[p]) return send(res, 404, { error: 'Route inconnue.' });
+  if (p.indexOf('/api/') === 0 || p.indexOf('/r/') === 0) await ready;
 
   if (p === '/api/login' && req.method === 'POST') {
     const b = await readBody(req);
-    const name = String(b.name || '').trim().toLowerCase();
-    const key = ip + '|' + name;
+    const key = ip;
     if (tooMany(key)) return send(res, 429, { error: 'Trop de tentatives. Réessayez dans quelques minutes.' });
-    const acc = q.accountByName.get(name);
-    const ok = acc && crypto.timingSafeEqual(Buffer.from(hashPassword(String(b.password || ''), acc.salt), 'hex'), Buffer.from(acc.hash, 'hex'));
-    if (!ok) { noteAttempt(key); return send(res, 401, { error: 'Nom d’espace ou mot de passe incorrect.' }); }
-    return send(res, 200, { ok: true, token: newSession(acc.id, b.device || {}), account: name });
+    const acc = (await pool.query('SELECT * FROM accounts WHERE name = $1', [ACCOUNT_NAME])).rows[0];
+    const ok = !!acc && crypto.timingSafeEqual(Buffer.from(hashPassword(String(b.password || ''), acc.salt), 'hex'), Buffer.from(acc.hash, 'hex'));
+    if (!ok) { noteAttempt(key); return send(res, 401, { error: 'Mot de passe incorrect.' }); }
+    const device = b.device && typeof b.device === 'object' ? b.device : {};
+    return send(res, 200, { ok: true, token: await newSession(acc.id, device), account: ACCOUNT_NAME });
   }
 
   if (p.indexOf('/r/') === 0 && req.method === 'GET') {
     const token = p.slice(3).replace(/[^a-zA-Z0-9]/g, '').slice(0, 40);
-    const pub = q.publicByToken.get(token);
+    const pub = (await pool.query('SELECT * FROM public_receipts WHERE token = $1', [token])).rows[0];
     if (!pub) return send(res, 404, 'Reçu introuvable.');
-    const row = q.getRecord.get(pub.account_id, 'recus', pub.rec_id);
+    const row = (await pool.query("SELECT data, deleted FROM records WHERE account_id = $1 AND kind = 'recus' AND id = $2", [pub.account_id, pub.rec_id])).rows[0];
     if (!row || row.deleted) return send(res, 404, 'Reçu introuvable.');
     const rec = JSON.parse(row.data);
     const verified = ReceiptCode.compute(rec) === rec.code;
     return send(res, 200, receiptPage(rec, verified), {
       'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store',
-      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'"
+      'Content-Security-Policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'"
     });
   }
 
   if (p.indexOf('/api/') === 0) {
-    const session = auth(req);
+    const session = await auth(req);
     if (!session) return send(res, 401, { error: 'Session expirée. Reconnectez-vous.' });
+    const acc = session.account_id;
 
-    if (p === '/api/sync' && req.method === 'POST') return send(res, 200, handleSync(session, await readBody(req)));
+    if (p === '/api/sync' && req.method === 'POST') return send(res, 200, await handleSync(session, await readBody(req)));
     if (p === '/api/logout' && req.method === 'POST') {
-      q.deleteSession.run(sha256(String(req.headers.authorization).slice(7)));
+      await pool.query('DELETE FROM sessions WHERE token_hash = $1', [session.token_hash]);
       return send(res, 200, { ok: true });
     }
     if (p === '/api/me') {
       const counts = {};
-      q.counts.all(session.account_id).forEach(function (r) { counts[r.kind] = r.n; });
-      return send(res, 200, { ok: true, counts: counts, head: q.head.get(session.account_id).s, devices: q.devices.all(session.account_id) });
+      (await pool.query('SELECT kind, COUNT(*) AS n FROM records WHERE account_id = $1 AND NOT deleted GROUP BY kind', [acc])).rows
+        .forEach(function (r) { counts[r.kind] = r.n; });
+      const devices = (await pool.query('SELECT device_id, device_name, created_at, last_seen FROM sessions WHERE account_id = $1 ORDER BY last_seen DESC', [acc])).rows;
+      return send(res, 200, { ok: true, counts: counts, head: await head(acc), devices: devices });
     }
     if (p === '/api/audit') {
       const kind = url.searchParams.get('kind');
       const id = url.searchParams.get('id');
-      if (kind && id) return send(res, 200, { ok: true, events: q.auditRec.all(session.account_id, kind, id) });
-      return send(res, 200, { ok: true, events: q.audit.all(session.account_id, Math.min(Number(url.searchParams.get('limit')) || 100, 500)) });
+      if (kind && id) {
+        return send(res, 200, { ok: true, events: (await pool.query('SELECT seq, at, device_name, kind, rec_id, op, data, note FROM events WHERE account_id = $1 AND kind = $2 AND rec_id = $3 ORDER BY seq DESC LIMIT 100', [acc, kind, id])).rows });
+      }
+      const limit = Math.min(Number(url.searchParams.get('limit')) || 100, 500);
+      return send(res, 200, { ok: true, events: (await pool.query('SELECT seq, at, device_name, kind, rec_id, op, note FROM events WHERE account_id = $1 ORDER BY seq DESC LIMIT $2', [acc, limit])).rows });
     }
     if (p === '/api/export') {
       const out = {};
-      q.allRecords.all(session.account_id).forEach(function (r) { (out[r.kind] = out[r.kind] || []).push(JSON.parse(r.data)); });
+      (await pool.query('SELECT kind, data FROM records WHERE account_id = $1 AND NOT deleted ORDER BY seq', [acc])).rows
+        .forEach(function (r) { (out[r.kind] = out[r.kind] || []).push(JSON.parse(r.data)); });
       return send(res, 200, { ok: true, exportedAt: nowIso(), data: out }, { 'Content-Disposition': 'attachment; filename="yvo-serveur-' + nowIso().slice(0, 10) + '.json"' });
     }
     return send(res, 404, { error: 'Route inconnue.' });
@@ -364,21 +368,29 @@ const server = http.createServer(function (req, res) {
   });
 });
 
-/* ---------- sauvegarde quotidienne ---------- */
+/* ---------- démarrage / arrêt ---------- */
 
-function backupNow() {
-  const file = path.join(DATA_DIR, 'backups', 'yvo-' + nowIso().slice(0, 10) + '.db');
-  try {
-    if (!fs.existsSync(file)) db.exec("VACUUM INTO '" + file.replace(/'/g, "''") + "'");
-    const files = fs.readdirSync(path.join(DATA_DIR, 'backups')).filter(function (f) { return /^yvo-.*\.db$/.test(f); }).sort();
-    files.slice(0, Math.max(0, files.length - 14)).forEach(function (f) { fs.unlinkSync(path.join(DATA_DIR, 'backups', f)); });
-  } catch (e) { console.error('Sauvegarde impossible', e.message); }
+function shutdown(signal) {
+  console.log('Arrêt demandé (' + signal + ')…');
+  const force = setTimeout(function () { process.exit(1); }, 10000);
+  force.unref();
+  server.close(function () {
+    pool.end().then(function () { process.exit(0); }, function () { process.exit(1); });
+  });
+  server.closeIdleConnections();
 }
 
 if (require.main === module) {
-  backupNow();
-  setInterval(backupNow, 6 * 3600 * 1000).unref();
-  server.listen(PORT, function () { console.log('YVO Épargne — serveur prêt sur http://localhost:' + PORT + ' (données : ' + DATA_DIR + ')'); });
+  ready.then(function () {
+    server.listen(PORT, function () {
+      console.log('YVO Épargne — serveur prêt sur http://localhost:' + PORT + ' (base : ' + DATABASE_URL.replace(/\/\/([^:@/]+):[^@/]*@/, '//$1:***@') + ')');
+    });
+    process.on('SIGTERM', function () { shutdown('SIGTERM'); });
+    process.on('SIGINT', function () { shutdown('SIGINT'); });
+  }, function (err) {
+    console.error(err.fatal ? '✖ ' + err.message : '✖ Impossible de préparer la base PostgreSQL : ' + err.message);
+    pool.end().catch(function () {}).then(function () { process.exit(1); });
+  });
 }
 
-module.exports = { server, db };
+module.exports = { server, pool, ready };
