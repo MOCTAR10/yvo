@@ -1,10 +1,10 @@
 // @ts-check
 const { defineConfig, devices } = require('@playwright/test');
-const path = require('node:path');
-const os = require('node:os');
 
 const PORT = Number(process.env.TEST_PORT) || 4173;
-const DATA_DIR = path.join(os.tmpdir(), 'yvo-test-data-' + PORT + '-' + Date.now());
+const DATABASE_URL = process.env.TEST_DATABASE_URL || 'postgres://yvo:yvo@localhost:5442/yvo_test';
+// Le vrai mot de passe vient uniquement de l'environnement (secret GitHub) ; repli local fictif.
+if (!process.env.YVO_PASSWORD) process.env.YVO_PASSWORD = 'test-yvo-2026';
 
 module.exports = defineConfig({
   testDir: './tests',
@@ -27,10 +27,11 @@ module.exports = defineConfig({
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } } }
   ],
   webServer: {
-    command: 'node --disable-warning=ExperimentalWarning server/server.js',
+    // Playwright démarre webServer AVANT globalSetup : la remise à zéro de la base se fait donc ici.
+    command: 'node tests/reset-db.js && node server/server.js',
     url: 'http://localhost:' + PORT + '/api/health',
     reuseExistingServer: false,
-    env: { PORT: String(PORT), DATA_DIR: DATA_DIR, REGISTRATION: 'open' },
+    env: { PORT: String(PORT), DATABASE_URL: DATABASE_URL, YVO_PASSWORD: process.env.YVO_PASSWORD, NODE_ENV: 'test' },
     timeout: 30000
   }
 });

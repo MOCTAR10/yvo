@@ -1,0 +1,36 @@
+# YVO Épargne — déploiement sur VPS : PostgreSQL + application.
+# 1. cp .env.example .env   puis choisir YVO_PASSWORD et POSTGRES_PASSWORD
+# 2. docker compose up -d --build
+# YVO_PASSWORD ne sert qu'au tout premier démarrage (création du compte « yvo »).
+# Ensuite, pour le changer : docker compose exec app node server/set-password.js <nouveau-mot-de-passe>
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: yvo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yvo}
+      POSTGRES_DB: yvo
+    volumes:
+      - yvo-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yvo -d yvo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://yvo:${POSTGRES_PASSWORD:-yvo}@db:5432/yvo
+      YVO_PASSWORD: ${YVO_PASSWORD:-}
+      PORT: "8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+volumes:
+  yvo-pgdata:
