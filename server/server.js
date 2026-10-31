@@ -301,7 +301,7 @@ async function route(req, res) {
     const key = ip;
     if (tooMany(key)) return send(res, 429, { error: 'Trop de tentatives. Réessayez dans quelques minutes.' });
     const acc = (await pool.query('SELECT * FROM accounts WHERE name = $1', [ACCOUNT_NAME])).rows[0];
-    const ok = !!acc && crypto.timingSafeEqual(Buffer.from(hashPassword(String(b.password || ''), acc.salt), 'hex'), Buffer.from(acc.hash, 'hex'));
+    const ok = !!acc && crypto.timingSafeEqual(Buffer.from(await hashPassword(String(b.password || ''), acc.salt), 'hex'), Buffer.from(acc.hash, 'hex'));
     if (!ok) { noteAttempt(key); return send(res, 401, { error: 'Mot de passe incorrect.' }); }
     const device = b.device && typeof b.device === 'object' ? b.device : {};
     return send(res, 200, { ok: true, token: await newSession(acc.id, device), account: ACCOUNT_NAME });

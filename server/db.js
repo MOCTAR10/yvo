@@ -72,8 +72,11 @@ function createPool() {
   return pool;
 }
 
+/* scrypt asynchrone : le calcul (volontairement lent) ne bloque pas le serveur. */
 function hashPassword(password, salt) {
-  return crypto.scryptSync(password, salt, 64).toString('hex');
+  return new Promise(function (resolve, reject) {
+    crypto.scrypt(password, salt, 64, function (err, key) { if (err) reject(err); else resolve(key.toString('hex')); });
+  });
 }
 
 async function ensureSchema(pool) {
@@ -95,7 +98,7 @@ async function ensureSchema(pool) {
 /* Crée ou remplace le mot de passe du compte unique « yvo ». */
 async function setPassword(pool, password) {
   const salt = crypto.randomBytes(16).toString('hex');
-  const hash = hashPassword(password, salt);
+  const hash = await hashPassword(password, salt);
   const r = await pool.query(
     'INSERT INTO accounts (id, name, salt, hash) VALUES ($1, $2, $3, $4) ' +
     'ON CONFLICT (name) DO UPDATE SET salt = EXCLUDED.salt, hash = EXCLUDED.hash RETURNING id',

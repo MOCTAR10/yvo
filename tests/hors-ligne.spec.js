@@ -1,13 +1,13 @@
 // L'application doit s'ouvrir et fonctionner sans réseau (service worker + copie locale).
 const { test, expect } = require('@playwright/test');
-const { openApp, PASSWORD } = require('./helpers');
+const { openApp, PASSWORD, waitOfflineReady } = require('./helpers');
 
 // L'installation du service worker (mise en cache) peut être lente sur une machine chargée.
 test.describe.configure({ timeout: 60000 });
 
 test('sans réseau : l’app s’ouvre avec les données et permet de pointer', async ({ page, context }) => {
   await openApp(page);
-  await page.evaluate(() => navigator.serviceWorker.ready);
+  await waitOfflineReady(page);
   const clients = await page.evaluate(() => db.clients.length);
 
   await context.setOffline(true);

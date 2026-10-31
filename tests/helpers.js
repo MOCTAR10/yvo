@@ -41,9 +41,15 @@ function clientsToPoint(page) {
     .map(e => ({ id: e.client.id, nom: e.client.nom, card: e.cards[0].id, cards: e.cards.map(c => c.id) })));
 }
 
+/* Attend que l'application soit installée pour le hors-ligne (service worker actif). */
+async function waitOfflineReady(page) {
+  await expect.poll(() => page.evaluate(() => navigator.serviceWorker.getRegistration().then(r => !!(r && r.active))),
+    { timeout: 45000, message: 'le service worker ne s’est pas installé' }).toBe(true);
+}
+
 async function goto(page, route) {
   await page.evaluate(r => { location.hash = '#/' + r; }, route);
   await expect(page.locator('#view')).not.toBeEmpty();
 }
 
-module.exports = { PASSWORD, login, openApp, trackErrors, clientsToPoint, goto };
+module.exports = { PASSWORD, login, openApp, trackErrors, clientsToPoint, goto, waitOfflineReady };

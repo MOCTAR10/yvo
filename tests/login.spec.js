@@ -1,7 +1,7 @@
 // Accès réservé à Yvo : le serveur vérifie le mot de passe ; hors réseau, le téléphone
 // se souvient de la dernière connexion réussie. Le mot de passe vient du secret YVO_PASSWORD.
 const { test, expect } = require('@playwright/test');
-const { PASSWORD, login, trackErrors } = require('./helpers');
+const { PASSWORD, login, trackErrors, waitOfflineReady } = require('./helpers');
 
 /* Chaque test a sa propre adresse IP simulée : les limites d'essais du serveur ne se mélangent pas. */
 test.beforeEach(async ({ context }) => {
@@ -79,7 +79,7 @@ test('un nouvel onglet redemande le mot de passe', async ({ page, context }) => 
 
 test('sans réseau : connexion possible après une première connexion en ligne', async ({ page, context }) => {
   await login(page);
-  await page.evaluate(() => navigator.serviceWorker.ready);
+  await waitOfflineReady(page);
   await context.setOffline(true);
   const page2 = await context.newPage();
   await page2.goto('/');
@@ -94,7 +94,7 @@ test('sans réseau : connexion possible après une première connexion en ligne'
 
 test('sans réseau sur un téléphone jamais connecté : message clair', async ({ page, context }) => {
   await page.goto('/');
-  await page.evaluate(() => navigator.serviceWorker.ready);
+  await waitOfflineReady(page);
   await page.reload();
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
   await context.setOffline(true);

@@ -237,8 +237,11 @@ function dedupeVersements() {
   return merged;
 }
 
+let syncPromise = Promise.resolve();
 function syncNow(manual) {
-  if (!syncCfg || !db || syncRunning) return Promise.resolve();
+  if (!syncCfg || !db) return Promise.resolve();
+  /* une synchronisation tourne déjà : on relance juste après, rien n'est ignoré */
+  if (syncRunning) return syncPromise.then(function () { return syncNow(manual); });
   if (state.locked && !manual) return Promise.resolve();
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     syncState.status = 'offline';
@@ -291,7 +294,7 @@ function syncNow(manual) {
     });
   };
 
-  return run(0).then(function () {
+  syncPromise = run(0).then(function () {
     syncState.status = 'idle';
     syncState.lastOkAt = Date.now();
     syncCfg.lastOkAt = syncState.lastOkAt;
@@ -321,6 +324,7 @@ function syncNow(manual) {
       toast(syncState.status === 'idle' ? 'Synchronisé avec le serveur.' : syncState.status === 'offline' ? 'Hors ligne : les modifications sont gardées et seront envoyées plus tard.' : (syncState.error || 'Erreur'), syncState.status === 'idle' ? 'success' : 'info');
     }
   });
+  return syncPromise;
 }
 
 function updateSyncPill() {
