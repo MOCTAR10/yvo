@@ -11,3 +11,6 @@ blob-report/
 # logos d'origine (copies utilisées : img/)
 airtel logo.png
 moov logo.png
+
+# dossiers de travail de Claude Code
+.claude/
