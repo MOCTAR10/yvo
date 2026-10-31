@@ -770,3 +770,188 @@ details.dash-more { margin-top: 16px; }
 @keyframes login-shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
 @media (prefers-reduced-motion: reduce) { .login-card, .login-card.shake, .login-card.is-ok { animation: none; } }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- Fiche client (calendrier) ---------- */
+/* En-tête : identité, contact, 3 chiffres clés, gros bouton Encaisser */
+.fc-hero { padding: 18px; }
+.fc-id { display: flex; align-items: center; gap: 14px; }
+.fc-id .avatar-lg { width: 60px; height: 60px; border-radius: 18px; flex: none; }
+.fc-id-main { min-width: 0; flex: 1; }
+.fc-id-main h1 { font-size: 26px; line-height: 1.1; margin: 0; overflow-wrap: anywhere; }
+.fc-id-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 13.5px; color: var(--ink-2); }
+.fc-id-meta span { display: inline-flex; align-items: center; gap: 5px; }
+.fc-id-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.fc-id-badges:empty { display: none; }
+.fc-contact { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+.fc-contact .contact-btn { height: 50px; font-size: 15px; border-radius: 15px; }
+.fc-figs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
+.fc-fig { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 11px 12px; border-radius: 15px; background: var(--surface-2); border: 1px solid var(--line); }
+.fc-fig span { font-size: 11.5px; font-weight: 650; color: var(--muted); }
+.fc-fig strong { font-family: var(--serif); font-size: 19px; font-weight: 600; line-height: 1.15; overflow-wrap: anywhere; }
+.fc-fig em { font-style: normal; font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 3px; line-height: 1.3; }
+.fc-fig-late { background: var(--red-bg); border-color: #f0c8c3; }
+.fc-fig-late strong, .fc-fig-late em { color: var(--red); }
+.fc-fig-ok { background: var(--green-bg); border-color: #bfe1cf; }
+.fc-fig-ok strong, .fc-fig-ok em { color: var(--green); }
+.fc-fig-today.ok em { color: var(--green); font-weight: 650; }
+.fc-pay-btn { width: 100%; height: 58px; margin-top: 14px; font-size: 17px; border-radius: 16px; gap: 9px; }
+.fc-actions { display: flex; gap: 8px; margin-top: 12px; }
+.fc-actions .btn { min-height: 44px; flex: 1; min-width: 0; padding: 0 8px; white-space: nowrap; }
+.fc-actions .icon-btn { width: 44px; height: 44px; flex: none; }
+
+/* Avancement de la carte */
+.fc-progress { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 14px 0; }
+.fc-prog { padding: 12px 13px; border-radius: 15px; background: var(--surface-2); border: 1px solid var(--line); min-width: 0; }
+.fc-prog-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.fc-prog-head span { font-size: 12px; font-weight: 650; color: var(--muted); }
+.fc-prog-head strong { font-size: 14.5px; text-align: right; }
+.fc-prog-head em { font-style: normal; font-weight: 500; font-size: 12px; color: var(--muted); }
+.fc-prog .progress { height: 9px; }
+.progress.blue > span { background: linear-gradient(90deg, #2f628c, #6d9cc4); }
+.fc-prog-foot { display: flex; justify-content: space-between; gap: 6px; margin-top: 7px; font-size: 11.5px; color: var(--muted); }
+.fc-prog-foot b { color: var(--ink-2); font-weight: 650; }
+.fc-card-figs { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.fc-card-figs div { display: flex; flex-direction: column; gap: 2px; padding: 9px 11px; border-radius: 13px; border: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.fc-card-figs span { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.fc-card-figs strong { font-size: 14.5px; line-height: 1.25; }
+.fc-more .mini-stats { margin-top: 10px; }
+.fc-more-line { margin: 8px 2px 0; }
+
+/* Calendrier : grand, lisible, une couleur par situation */
+.fc-cal { padding: 14px; }
+.fc-cal .cal-head { margin-bottom: 12px; }
+.fc-cal .fc-cal-nav { width: 46px; height: 46px; border-radius: 14px; flex: none; }
+.fc-cal .cal-title strong { font-size: 19px; }
+.fc-cal .cal-title span { font-size: 12px; }
+.fc-cal-today { border: 0; background: none; padding: 4px 6px; font-size: 12.5px; font-weight: 650; color: var(--brand); text-decoration: underline; cursor: pointer; }
+.fc-cal .cal-weekdays span { font-size: 11px; text-transform: none; letter-spacing: 0; }
+.fc-cal .cal-day { min-height: 54px; padding: 5px 6px; cursor: pointer; }
+.fc-cal .cal-day:disabled { cursor: default; }
+.fc-cal .cal-empty { min-height: 54px; }
+.fc-cal .cal-day .dnum { font-size: 13px; }
+.fc-cal .cal-day .damt { font-size: 9.5px; }
+.fc-cal .cal-day.today { box-shadow: 0 0 0 2.5px var(--brand); }
+.fc-cal .cal-day.out { opacity: 0.35; }
+.fc-cal .cal-day.missed { background: var(--red-bg); border: 1px dashed #dfa9a1; color: #8c3029; }
+.cal-marks { display: flex; gap: 2px; flex: none; }
+.cal-mm { display: block; width: 15px; height: 15px; border-radius: 4px; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08); overflow: hidden; }
+.cal-mm img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.fc-cal-sum { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 13.5px; color: var(--ink-2); }
+.fc-cal-sum p { margin: 0; }
+.fc-cal-sum div { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 12.5px; font-weight: 600; }
+.fc-cal-sum .blue { color: var(--blue); }
+.fc-legend { display: flex; flex-wrap: wrap; gap: 7px 14px; margin-top: 10px; font-size: 12px; color: var(--ink-2); }
+.fc-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.fc-legend .lg { width: 14px; height: 14px; border-radius: 4px; }
+.fc-legend-mm img { height: 15px; width: auto; border-radius: 3px; }
+.fc-cal-hint { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+
+/* Derniers versements */
+.fc-pay-list { display: grid; gap: 6px; }
+.fc-pay {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 58px; padding: 8px 12px;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--surface); text-align: left; cursor: pointer; color: inherit; font: inherit;
+}
+.fc-pay:active { transform: scale(0.99); }
+.fc-pay-ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--surface-2); flex: none; color: var(--green); }
+.fc-pay-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.fc-pay-main strong { font-size: 15px; }
+.fc-pay-main em { font-style: normal; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fc-pay-main .fc-pay-ref { font-family: ui-monospace, monospace; font-size: 11.5px; }
+.fc-pay-mode { font-size: 12px; font-weight: 650; color: var(--muted); flex: none; }
+.fc-pay.mode-airtel .fc-pay-mode { color: #c4040f; }
+.fc-pay.mode-moov .fc-pay-mode { color: #d35f00; }
+
+@media (min-width: 981px) {
+  .client-page { max-width: 920px; margin: 0 auto; }
+  .fc-hero { padding: 24px; }
+  .fc-id-main h1 { font-size: 30px; }
+  .fc-contact { display: flex; }
+  .fc-contact .contact-btn { min-width: 160px; }
+  .fc-pay-list { grid-template-columns: 1fr 1fr; }
+  .fc-cal .cal-day { min-height: 64px; }
+  .fc-cal .cal-empty { min-height: 64px; }
+}
+
+@media (max-width: 560px) {
+  .fc-hero { padding: 16px; }
+  .fc-id-main h1 { font-size: 23px; }
+  .fc-figs { gap: 6px; }
+  .fc-fig { padding: 9px; border-radius: 13px; }
+  .fc-fig strong { font-size: 15.5px; }
+  .fc-fig span, .fc-fig em { font-size: 11px; }
+  .fc-progress { grid-template-columns: 1fr; }
+  .fc-cal { padding: 10px; }
+  .fc-cal .cal-weekdays, .fc-cal .cal-grid { gap: 4px; }
+  .fc-cal .cal-day { min-height: 48px; padding: 4px; border-radius: 9px; }
+  .fc-cal .cal-empty { min-height: 48px; }
+  .fc-cal .cal-day .dnum { font-size: 12px; }
+  .fc-cal .cal-day .damt { display: block; font-size: 8.5px; }
+  .cal-mm { width: 13px; height: 13px; }
+}
+
+/* Chaque carte du client = sa carte physique (couleur du type), calendrier dedans */
+.fc-card-panel { margin-bottom: 22px; scroll-margin-top: 80px; }
+.vcard.fc-card { width: 100%; aspect-ratio: auto; display: block; padding: 16px; border-radius: 24px; scroll-snap-align: none; }
+.vcard.fc-card:active { transform: none; }
+.fc-card-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.fc-card-top .vc-state { font-size: 11px; letter-spacing: 0.04em; text-transform: none; white-space: nowrap; }
+.fc-card-id { display: flex; align-items: center; gap: 12px; margin: 14px 0 12px; }
+.fc-card-id .vc-chip { flex: none; }
+.fc-card-name { flex: 1; min-width: 0; }
+.fc-card-name h3 { margin: 0; font-family: var(--serif); font-size: 21px; font-weight: 600; color: #fff; line-height: 1.1; }
+.fc-card-name span { display: block; font-size: 12px; opacity: 0.8; margin-top: 2px; }
+.fc-card-daily { flex: none; text-align: right; line-height: 1.1; }
+.fc-card-daily strong { display: block; font-family: var(--serif); font-size: 20px; font-weight: 600; white-space: nowrap; }
+.fc-card-daily span { font-size: 12px; opacity: 0.8; }
+.fc-card .fc-cal { color: var(--ink); background: #fffdf9; border: 0; border-radius: 18px; box-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.55); }
+.fc-card-foot { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 12px 2px 7px; font-size: 12.5px; }
+.fc-card-foot span { opacity: 0.85; }
+.fc-card-foot strong { font-size: 14px; opacity: 1; }
+.fc-card-body {
+  margin: -18px 10px 0; padding: 28px 14px 6px; border-radius: 0 0 20px 20px;
+  background: var(--surface); border: 1px solid var(--line); border-top: 0; box-shadow: var(--lift);
+}
+.fc-card-body .fc-progress { margin-top: 12px; }
+.fc-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.fc-card-actions .btn { flex: 1 1 auto; min-height: 44px; white-space: nowrap; }
+.fc-card-tools { display: flex; gap: 8px; margin-left: auto; }
+.fc-card-tools .icon-btn { width: 44px; height: 44px; }
+
+/* Jour pointé : ✓ en haut à droite, montant et Airtel / Moov en bas */
+.fc-cal .cal-day { justify-content: space-between; align-items: stretch; }
+.cal-top, .cal-bot { display: flex; align-items: center; justify-content: space-between; gap: 2px; min-width: 0; }
+.cal-bot .damt { min-width: 0; }
+.cal-check {
+  display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; flex: none;
+  background: rgba(0, 0, 0, 0.12); color: inherit; font-style: normal; font-size: 10px; font-weight: 800; line-height: 1;
+}
+.cal-day.complet .cal-check { background: #0f7656; color: #fff; }
+.cal-day.partiel .cal-check { background: #b47c2a; color: #fff; }
+.cal-day.avance .cal-check { background: #2f628c; color: #fff; }
+.cal-day.absent .cal-check { background: #a63c33; color: #fff; }
+.fc-legend .cal-check { background: var(--brand); color: #fff; }
+
+@media (min-width: 981px) {
+  .vcard.fc-card { padding: 22px 24px; }
+  .fc-card-name h3 { font-size: 24px; }
+  .fc-card-daily strong { font-size: 24px; }
+  .fc-card-body { margin: -18px 16px 0; padding: 30px 18px 8px; }
+}
+
+@media (max-width: 560px) {
+  .vcard.fc-card { padding: 12px 10px 12px; border-radius: 20px; }
+  .fc-card-top { padding: 0 4px; }
+  .fc-card-id { margin: 12px 4px 10px; gap: 10px; }
+  .fc-card-id .vc-chip { width: 32px; height: 24px; padding: 4px; }
+  .fc-card-name h3 { font-size: 19px; }
+  .fc-card-daily strong { font-size: 18px; }
+  .fc-card .fc-cal { padding: 8px 6px; border-radius: 15px; }
+  .fc-card .fc-cal .cal-weekdays, .fc-card .fc-cal .cal-grid { gap: 3px; }
+  .fc-card .fc-cal .cal-day { min-height: 46px; padding: 3px 3px 3px 4px; }
+  .fc-card .fc-cal .cal-empty { min-height: 46px; }
+  .fc-card-foot { margin: 10px 4px 6px; }
+  .fc-card .vc-bar { margin: 0 4px; }
+  .cal-check { width: 13px; height: 13px; font-size: 9px; }
+  .fc-card-body { margin: -16px 6px 0; padding: 26px 10px 4px; }
+}
