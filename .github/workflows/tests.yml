@@ -1,0 +1,61 @@
+name: Tests de non-régression
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  syntaxe:
+    name: Syntaxe JavaScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/check-syntax.js
+
+  e2e:
+    name: Application (mobile + ordinateur)
+    needs: syntaxe
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Lancer les tests
+        run: npx playwright test
+        env:
+          CI: true
+          YVO_PASSWORD: ${{ secrets.YVO_PASSWORD }}
+      - name: Rapport des tests
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-playwright
+          path: playwright-report/
+          retention-days: 14
+
+  docker:
+    name: Image Docker
+    needs: syntaxe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t yvo-epargne .
+      - name: Le conteneur démarre et répond
+        run: |
+          docker run -d --name yvo -p 8080:8080 yvo-epargne
+          for i in $(seq 1 20); do curl -fs http://localhost:8080/api/health && exit 0; sleep 1; done
+          docker logs yvo; exit 1

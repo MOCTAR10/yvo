@@ -1,0 +1,13 @@
+node_modules/
+server/data/
+data/
+test-results/
+playwright-report/
+blob-report/
+*.db
+*.db-wal
+*.db-shm
+.env
+# logos d'origine (copies utilisées : img/)
+airtel logo.png
+moov logo.png
