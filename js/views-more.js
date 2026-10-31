@@ -25,25 +25,22 @@ function plusGroup(title, ids) {
 
 function viewPlus() {
   const company = db.settings.company;
-  const safe = storageInfo.idb;
-  const snaps = storageInfo.snapshots || 0;
+  const online = syncState.status === 'idle';
   return '<div class="page plus-page">' +
     '<section class="me-card">' +
       '<span class="brand-mark">' + esc(initials(company.nom || 'Y')) + '</span>' +
       '<div><strong>' + esc(company.nom) + '</strong><span>' + esc(company.responsable || company.activite || '') + '</span></div>' +
     '</section>' +
-    '<a class="safe-card ' + (safe ? 'ok' : 'warn') + '" href="#/parametres">' +
-      icon(safe ? 'shield' : 'alert', 22) +
-      '<span><strong>' + (safe ? 'Vos données sont protégées' : 'Protection limitée') + '</strong>' +
-      '<em>' + (safe ? 'Tout est enregistré automatiquement.' : 'Envoyez-vous une sauvegarde souvent.') + '</em></span>' +
-      icon('chevron-right', 18) +
-    '</a>' +
+    '<div class="safe-card ' + (online ? 'ok' : 'warn') + '">' +
+      icon(online ? 'cloud' : 'alert', 22) +
+      '<span><strong>' + (online ? 'Vos données sont en ligne' : esc(syncStatusLabel())) + '</strong>' +
+      '<em>' + (online ? 'Tout est enregistré automatiquement.' : 'L’application continue ; l’envoi se fera dès que possible.') + '</em></span>' +
+    '</div>' +
     plusGroup('Chaque jour', ['alertes', 'risques', 'cloture', 'recus']) +
     plusGroup('Mon argent', ['commission', 'multi', 'activite']) +
-    plusGroup('Sécurité', ['sync', 'corbeille', 'parametres']) +
+    plusGroup('Réglages', ['corbeille', 'parametres']) +
     '<div class="menu-list">' +
       ('<button type="button" class="menu-item" data-action="lock-now"><span class="menu-ic">' + icon('lock', 21) + '</span><span class="menu-text"><strong>Verrouiller</strong><em>Protéger l’application</em></span></button>') +
-      '<button type="button" class="menu-item" data-action="share-backup"><span class="menu-ic">' + icon('share', 21) + '</span><span class="menu-text"><strong>Envoyer une sauvegarde</strong><em>Par WhatsApp, e-mail ou Drive</em></span></button>' +
     '</div>' +
     '<p class="version-line">YVO Épargne ' + APP_VERSION + ' · marche aussi sans internet</p>' +
   '</div>';

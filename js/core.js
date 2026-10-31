@@ -26,10 +26,9 @@ const NAV_MORE = [
   { id: 'cloture', label: 'Fin de journée', desc: 'Compter l’argent et vérifier', icon: 'lock', href: '#/cloture' },
   { id: 'recus', label: 'Reçus', desc: 'Les reçus envoyés aux clients', icon: 'receipt', href: '#/recus' },
   { id: 'commission', label: 'Commissions', desc: 'Ce que vous prélevez sur l’épargne', icon: 'coins', href: '#/commission' },
-  { id: 'sync', label: 'Sauvegarde en ligne', desc: 'Retrouver vos données si le téléphone est perdu', icon: 'cloud', href: '#/sync' },
   { id: 'multi', label: 'Plusieurs cartes', desc: 'Clients qui ont plus d’une carte', icon: 'layers', href: '#/multi' },
   { id: 'corbeille', label: 'Corbeille', desc: 'Récupérer ce qui a été supprimé', icon: 'trash', href: '#/corbeille' },
-  { id: 'parametres', label: 'Réglages', desc: 'Votre entreprise, code, sauvegardes', icon: 'settings', href: '#/parametres' }
+  { id: 'parametres', label: 'Réglages', desc: 'Mon profil, ma caisse, types de carte', icon: 'settings', href: '#/parametres' }
 ];
 
 const NAV_SIDEBAR = NAV.filter(function (n) { return n.id !== 'plus'; }).concat(NAV_MORE);
@@ -72,7 +71,7 @@ const DAYS_NARROW = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 const STATUT_LABELS = {
   complet: 'Complet',
   partiel: 'Partiel',
-  avance: 'Avance',
+  avance: 'En avance',
   absent: 'Non versé'
 };
 
@@ -145,6 +144,7 @@ function movementAmountForMode(m, filter) {
 const CAT_LABELS = {
   versement: 'Versement',
   retrait: 'Retrait client',
+  pret: 'Avance d’argent',
   apport: 'Apport',
   depense: 'Dépense',
   prelevement: 'Prélèvement',
@@ -186,6 +186,9 @@ let idCounter = 0;
    Base de données
    ------------------------------------------------------------ */
 
+/* L'application est celle de Yvo : son profil est déjà rempli, rien à configurer. */
+const YVO_PROFILE = { nom: 'YVO Épargne', responsable: 'Yvo', telephone: '077814766', indicatif: '241' };
+
 function emptyDB() {
   return {
     version: DB_SCHEMA,
@@ -194,16 +197,16 @@ function emptyDB() {
     revision: 0,
     settings: {
       company: {
-        nom: 'Mon entreprise',
-        responsable: '',
-        telephone: '',
+        nom: YVO_PROFILE.nom,
+        responsable: YVO_PROFILE.responsable,
+        telephone: YVO_PROFILE.telephone,
         email: '',
         adresse: '',
         ville: '',
         activite: 'Collecte quotidienne & épargne'
       },
       devise: 'FCFA',
-      indicatif: '',
+      indicatif: YVO_PROFILE.indicatif,
       soldeInitial: 0,
       seuilRisque: 3,
       commission: { actif: false, baremes: [] },
@@ -236,6 +239,11 @@ function normalizeDB(raw) {
   out.seq = Object.assign({}, base.seq, raw.seq || {});
   out.settings.commission = Object.assign({ actif: false, baremes: [] }, out.settings.commission || {});
   if (!Array.isArray(out.settings.commission.baremes)) out.settings.commission.baremes = [];
+  const co = out.settings.company;
+  if (!co.nom || co.nom === 'Mon entreprise') co.nom = YVO_PROFILE.nom;
+  if (!co.responsable) co.responsable = YVO_PROFILE.responsable;
+  if (!co.telephone) co.telephone = YVO_PROFILE.telephone;
+  if (!out.settings.indicatif) out.settings.indicatif = YVO_PROFILE.indicatif;
   return migrateDB(out);
 }
 
@@ -263,7 +271,7 @@ function migrateDB(d) {
 function saveDB() {
   const ok = persistDB();
   if (!ok && typeof toast === 'function') {
-    toast('Sauvegarde impossible : le stockage de l’appareil est plein ou bloqué. Exportez vos données maintenant.', 'error');
+    toast('Sauvegarde impossible : le stockage de l’appareil est plein ou bloqué. Gardez le réseau allumé : vos données partent sur le serveur.', 'error');
   }
   return ok;
 }
@@ -501,14 +509,8 @@ function hashPin(pin) {
   return (h >>> 0).toString(16);
 }
 
-/* ------------------------------------------------------------
-   Accès réservé à Yvo : seul l'empreinte SHA-256 du mot de passe
-   est dans le code (pas le mot de passe lui-même).
-   ------------------------------------------------------------ */
-const ACCESS_SALT = 'yvo-epargne-acces:';
-const ACCESS_HASH = '2f2abc898c9f51268066ecb64c4652f76b1a8147195f1684a9048fbe5f38a4aa';
-
-/* SHA-256 en JavaScript pur : fonctionne même hors HTTPS (crypto.subtle n'y est pas disponible). */
+/* SHA-256 en JavaScript pur : sert à vérifier le mot de passe hors réseau
+   (empreinte salée gardée sur le téléphone après une connexion réussie). */
 function sha256(text) {
   const K = [
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -551,9 +553,6 @@ function sha256(text) {
   return H.map(function (x) { return (x >>> 0).toString(16).padStart(8, '0'); }).join('');
 }
 
-function checkAccessPassword(pw) {
-  return sha256(ACCESS_SALT + String(pw)) === ACCESS_HASH;
-}
 
 function nextReceiptNumber() {
   const tag = (typeof syncCfg !== 'undefined' && syncCfg && syncCfg.deviceId) ? '-' + String(syncCfg.deviceId).replace(/[^A-Za-z0-9]/g, '').slice(-2).toUpperCase() : '';
@@ -746,11 +745,16 @@ function cardTotals(carte) {
     return o.type === 'sortie' && o.categorie === 'retrait' && o.carteId === carte.id;
   });
   const totalRetire = sum(retraits, function (o) { return o.montant; });
+  /* avances d'argent : remboursées par les cotisations, la carte peut « devoir » */
+  const prets = db.operations.filter(function (o) { return o.categorie === 'pret' && o.carteId === carte.id; });
+  const totalPret = sum(prets, function (o) { return o.montant; });
+  const fraisPret = sum(prets, function (o) { return o.frais; });
   const jours = periodDays(carte.dateDebut, carte.dateFin);
   const objectif = jours * (Number(carte.montantJournalier) || 0);
   const manquant = Math.max(0, objectif - totalVerse);
   const comm = computeCommission(carte, vs, todayISO());
-  const solde = Math.max(0, totalVerse - comm.total - totalRetire);
+  const soldeBrut = totalVerse - comm.total - totalRetire - totalPret - fraisPret;
+  const solde = Math.max(0, soldeBrut);
   const today = todayISO();
   const ecoules = clamp(diffDays(carte.dateDebut, today) + 1, 0, jours);
   const attendu = ecoules * (Number(carte.montantJournalier) || 0);
@@ -772,6 +776,9 @@ function cardTotals(carte) {
     objectif: objectif,
     manquant: manquant,
     solde: solde,
+    totalPret: totalPret,
+    fraisPret: fraisPret,
+    resteARembourser: Math.max(0, -soldeBrut),
     commission: comm.total,
     commissionLignes: comm.lignes,
     progression: objectif > 0 ? Math.min(100, (totalVerse / objectif) * 100) : 0,
@@ -800,7 +807,10 @@ function clientTotals(client) {
   });
   const totalRetire = sum(retraits, function (o) { return o.montant; });
   const commission = sum(totals, function (t) { return t.commission; });
-  const solde = Math.max(0, totalVerse - commission - totalRetire);
+  const totalPret = sum(totals, function (t) { return t.totalPret; });
+  const fraisPret = sum(totals, function (t) { return t.fraisPret; });
+  const resteARembourser = sum(totals, function (t) { return t.resteARembourser; });
+  const solde = sum(totals, function (t) { return t.solde; });
   const actives = cards.filter(function (c) { return c.statut === 'active'; });
   const journalier = sum(actives, function (c) { return Number(c.montantJournalier) || 0; });
   const retard = sum(actives.map(cardTotals), function (t) { return t.retard; });
@@ -816,6 +826,9 @@ function clientTotals(client) {
     manquant: manquant,
     totalRetire: totalRetire,
     solde: solde,
+    totalPret: totalPret,
+    fraisPret: fraisPret,
+    resteARembourser: resteARembourser,
     commission: commission,
     journalier: journalier,
     progression: objectif > 0 ? Math.min(100, (totalVerse / objectif) * 100) : 0,

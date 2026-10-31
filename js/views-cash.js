@@ -115,7 +115,7 @@ function treasuryRange(period) {
 
 function categoryTone(cat) {
   if (cat === 'versement') return 'green';
-  if (cat === 'retrait') return 'amber';
+  if (cat === 'retrait' || cat === 'pret') return 'amber';
   if (cat === 'depense' || cat === 'prelevement') return 'red';
   if (cat === 'apport') return 'blue';
   return 'gray';
@@ -131,7 +131,7 @@ function treasuryRowHTML(m) {
   if (m.kind === 'versement' && client) {
     actions = '<a class="icon-btn sm" href="#/client/' + esc(client.id) + '" title="Ouvrir la fiche">' + icon('arrow-up-right', 14) + '</a>';
   } else {
-    if (m.categorie === 'retrait') {
+    if (m.categorie === 'retrait' || m.categorie === 'pret') {
       actions += '<button type="button" class="icon-btn sm" data-action="open-receipt" data-op="' + esc(m.id) + '" title="Voir le reçu">' + icon('printer', 14) + '</button>';
     }
     actions += '<button type="button" class="icon-btn sm danger" data-action="delete-op" data-op="' + esc(m.id) + '" title="Supprimer l’opération">' + icon('trash', 14) + '</button>';
@@ -165,6 +165,7 @@ function viewTresorerie() {
   if (state.treasuryType === 'entrees') movements = movements.filter(function (m) { return m.type === 'entree'; });
   if (state.treasuryType === 'sorties') movements = movements.filter(function (m) { return m.type === 'sortie'; });
   if (state.treasuryType === 'retraits') movements = movements.filter(function (m) { return m.categorie === 'retrait'; });
+  if (state.treasuryType === 'prets') movements = movements.filter(function (m) { return m.categorie === 'pret'; });
   const modeFilter = state.treasuryMode;
   const byMode = { especes: 0, airtel: 0, moov: 0 };
   movements.forEach(function (m) {
@@ -228,6 +229,7 @@ function viewTresorerie() {
             '<option value="entrees"' + (state.treasuryType === 'entrees' ? ' selected' : '') + '>Entrées</option>' +
             '<option value="sorties"' + (state.treasuryType === 'sorties' ? ' selected' : '') + '>Sorties</option>' +
             '<option value="retraits"' + (state.treasuryType === 'retraits' ? ' selected' : '') + '>Retraits clients</option>' +
+            '<option value="prets"' + (state.treasuryType === 'prets' ? ' selected' : '') + '>Avances d’argent</option>' +
           '</select>' +
           '<select id="treasury-mode" class="select-sm">' +
             [['tous', 'Tous les modes'], ['especes', 'Espèces'], ['mobile', 'Mobile Money'], ['airtel', 'Airtel Money'], ['moov', 'Moov Money']].map(function (o) {
@@ -273,23 +275,16 @@ function viewParametres() {
   const autoLock = Number(db.settings.autoLock) || 0;
 
   return '<div class="page">' +
-    pageHead('Réglages', 'Réglages', 'Votre entreprise, votre caisse et la protection de vos données.') +
+    pageHead('Réglages', 'Réglages', 'Votre profil, votre caisse et vos types de carte.') +
     '<div class="settings-grid">' +
       '<section class="setting-card">' +
-        '<div class="setting-head"><span class="setting-ic">' + icon('building', 19) + '</span><div><h2>Mon entreprise</h2><p>Ces informations figurent sur les reçus.</p></div></div>' +
+        '<div class="setting-head"><span class="setting-ic">' + icon('user', 19) + '</span><div><h2>Mon profil</h2><p>Ces informations figurent sur les reçus.</p></div></div>' +
         '<form id="form-settings-company" data-form="settings-company" autocomplete="off">' +
           '<div class="form-grid">' +
-            '<label class="field"><span>Nom de l’entreprise *</span><input name="nom" required value="' + esc(company.nom) + '"></label>' +
             '<label class="field"><span>Votre nom</span><input name="responsable" value="' + esc(company.responsable) + '"></label>' +
             '<label class="field"><span>Téléphone</span><input name="telephone" type="tel" value="' + esc(company.telephone) + '"></label>' +
-            '<label class="field"><span>Indicatif du pays (WhatsApp)</span><input name="indicatif" inputmode="numeric" value="' + esc(db.settings.indicatif || '') + '" placeholder="Ex. 221"><small>Pour envoyer les reçus aux clients par WhatsApp.</small></label>' +
+            '<label class="field span2"><span>Nom sur les reçus *</span><input name="nom" required value="' + esc(company.nom) + '"></label>' +
           '</div>' +
-          '<details class="more"><summary>Plus d’informations</summary><div class="form-grid">' +
-            '<label class="field"><span>Email</span><input name="email" type="email" value="' + esc(company.email) + '"></label>' +
-            '<label class="field"><span>Ville</span><input name="ville" value="' + esc(company.ville) + '"></label>' +
-            '<label class="field span2"><span>Adresse</span><input name="adresse" value="' + esc(company.adresse) + '"></label>' +
-            '<label class="field span2"><span>Activité</span><input name="activite" value="' + esc(company.activite) + '"></label>' +
-          '</div></details>' +
           '<div class="form-actions"><button type="submit" class="btn primary">' + icon('check', 15) + ' Enregistrer</button></div>' +
         '</form>' +
       '</section>' +
@@ -318,32 +313,16 @@ function viewParametres() {
         '</select></label>' +
       '</section>' +
       '<section class="setting-card">' +
-        '<div class="setting-head"><span class="setting-ic">' + icon('database', 19) + '</span><div><h2>Sauvegardes</h2><p>Vos données sont enregistrées automatiquement sur ce téléphone.</p></div></div>' +
+        '<div class="setting-head"><span class="setting-ic">' + icon('cloud', 19) + '</span><div><h2>Mes données</h2><p>Tout est enregistré en ligne automatiquement. Sans réseau, l’application continue et envoie dès que le réseau revient.</p></div></div>' +
         '<div class="backup-row">' +
-          '<div><strong>Dernière sauvegarde envoyée</strong><span>' + (db.settings.lastBackup ? fmtDateTime(db.settings.lastBackup) : 'Aucune pour l’instant') + '</span></div>' +
-          '<button type="button" class="btn primary" data-action="share-backup">' + icon('share', 15) + ' Envoyer</button>' +
+          '<div><strong>' + esc(syncStatusLabel()) + '</strong><span>' + (syncState.lastOkAt ? 'Dernier envoi : ' + esc(fmtDateTime(new Date(syncState.lastOkAt).toISOString())) : 'Pas encore envoyé') + '</span></div>' +
         '</div>' +
+        '<h3 class="sub-h">Exporter vers Excel</h3>' +
         '<div class="backup-actions">' +
-          '<button type="button" class="btn ghost" data-action="export-csv" data-what="clients">' + icon('download', 15) + ' Clients (Excel)</button>' +
-          '<button type="button" class="btn ghost" data-action="export-csv" data-what="versements">' + icon('download', 15) + ' Versements (Excel)</button>' +
-          '<button type="button" class="btn ghost" data-action="export-csv" data-what="operations">' + icon('download', 15) + ' Caisse (Excel)</button>' +
+          '<button type="button" class="btn ghost" data-action="export-csv" data-what="clients">' + icon('download', 15) + ' Clients</button>' +
+          '<button type="button" class="btn ghost" data-action="export-csv" data-what="versements">' + icon('download', 15) + ' Versements</button>' +
+          '<button type="button" class="btn ghost" data-action="export-csv" data-what="operations">' + icon('download', 15) + ' Caisse</button>' +
         '</div>' +
-        '<details class="more"><summary>Options avancées</summary>' +
-          '<div class="health-list">' +
-            '<div class="health ' + (storageInfo.persisted ? 'ok' : 'warn') + '">' + icon(storageInfo.persisted ? 'check-circle' : 'alert', 18) + '<span><strong>Stockage protégé</strong><em>' + (storageInfo.persisted ? 'Le téléphone ne nettoiera pas vos données' : 'Ajoutez l’application à l’écran d’accueil pour l’obtenir') + '</em></span></div>' +
-          '</div>' +
-          '<div class="backup-actions">' +
-            '<button type="button" class="btn ghost" data-action="export-data">' + icon('download', 15) + ' Copie complète (fichier)</button>' +
-            '<label class="btn ghost file-btn">' + icon('upload', 15) + ' Importer une copie<input type="file" id="import-file" accept="application/json,.json" hidden></label>' +
-          '</div>' +
-          '<h3 class="sub-h">Retours en arrière</h3>' +
-          '<div id="snap-list" class="snap-list"><p class="muted">Chargement…</p></div>' +
-          '<div class="backup-actions">' +
-            '<button type="button" class="btn ghost" data-action="snapshot-now">' + icon('history', 15) + ' Créer un retour en arrière maintenant</button>' +
-            (db.settings.demo ? '<button type="button" class="btn ghost" data-action="reset-demo">Quitter la démonstration</button>' : '') +
-            '<button type="button" class="btn danger-ghost" data-action="erase-data">' + icon('trash', 15) + ' Tout effacer</button>' +
-          '</div>' +
-        '</details>' +
       '</section>' +
     '</div>' +
   '</div>';

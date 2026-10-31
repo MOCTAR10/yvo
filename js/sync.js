@@ -300,7 +300,7 @@ function syncNow(manual) {
   }).catch(function (err) {
     if (err && err.status === 401) {
       syncState.status = 'error';
-      syncState.error = 'Session expirée : reconnectez-vous dans Synchronisation.';
+      syncState.error = 'Session expirée : verrouillez puis reconnectez-vous avec Internet.';
     } else if (err && (err.name === 'AbortError' || err instanceof TypeError)) {
       syncState.status = 'offline';
       syncState.error = null;
@@ -334,11 +334,11 @@ function updateSyncPill() {
 }
 
 function syncStatusLabel() {
-  if (!syncCfg) return 'Sauvegarde en ligne désactivée';
-  if (syncState.status === 'syncing') return 'Sauvegarde en cours…';
+  if (!syncCfg) return 'Pas encore relié au serveur';
+  if (syncState.status === 'syncing') return 'Envoi en cours…';
   if (syncState.status === 'offline') return 'Pas de réseau : tout est gardé sur le téléphone';
   if (syncState.status === 'error') return syncState.error || 'Erreur de synchronisation';
-  return syncState.lastOkAt ? 'Sauvegardé à ' + fmtDateTime(new Date(syncState.lastOkAt).toISOString()).split(' à ')[1] : 'Connecté';
+  return syncState.lastOkAt ? 'À jour · ' + fmtDateTime(new Date(syncState.lastOkAt).toISOString()).split(' à ')[1] : 'Connecté';
 }
 
 /* ------------------------------------------------------------

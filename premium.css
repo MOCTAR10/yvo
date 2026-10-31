@@ -709,6 +709,15 @@ details.dash-more { margin-top: 16px; }
 .recu-mode { display: inline-flex; align-items: center; gap: 6px; }
 .cloture-lines .muted-line { color: var(--muted); font-size: 12.5px; }
 
+/* ---------- Avance d'argent ---------- */
+.pret-preview { display: grid; gap: 6px; margin: 4px 0 6px; padding: 12px 14px; border-radius: 14px; background: var(--surface-2); font-size: 13px; }
+.pret-preview > div { display: flex; justify-content: space-between; gap: 10px; }
+.pret-preview span { color: var(--muted); }
+.pret-preview .total { padding-top: 6px; border-top: 1px dashed var(--line); font-size: 14.5px; }
+.pret-preview .total strong { color: var(--amber); }
+.pret-preview.warn { background: #fff4e5; }
+.pret-alert { display: flex; gap: 6px; align-items: flex-start; margin: 4px 0 0; color: #a1520b; font-weight: 600; font-size: 12.5px; }
+
 /* ---------- Connexion : espace privé de Yvo ---------- */
 .lock-screen {
   position: relative; overflow: hidden; min-height: 100vh; min-height: 100dvh;

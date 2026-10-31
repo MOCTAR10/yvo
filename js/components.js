@@ -209,6 +209,8 @@ function receiptHTML(op) {
   const totalVerse = snap.totalVerse != null ? snap.totalVerse : 0;
   const soldeApres = snap.soldeApres != null ? snap.soldeApres : 0;
   const montant = Number(op.montant) || 0;
+  const isPret = op.categorie === 'pret';
+  const frais = Number(op.frais) || 0;
 
   return '<div id="receipt-print" class="receipt">' +
     '<div class="receipt-head">' +
@@ -231,7 +233,7 @@ function receiptHTML(op) {
       (company.email ? '<span>' + esc(company.email) + '</span>' : '') +
       '<span>' + esc([company.adresse, company.ville].filter(Boolean).join(', ')) + '</span>' +
     '</div>' +
-    '<div class="receipt-title">Reçu de paiement au client</div>' +
+    '<div class="receipt-title">' + (isPret ? 'Reçu d’avance d’argent' : 'Reçu de paiement au client') + '</div>' +
     '<div class="receipt-grid">' +
       '<div><span>Client</span><strong>' + esc(nom) + '</strong></div>' +
       '<div><span>Téléphone</span><strong>' + esc(tel || '—') + '</strong></div>' +
@@ -239,6 +241,7 @@ function receiptHTML(op) {
       '<div><span>Pièce d’identité</span><strong>' + esc(piece || '—') + '</strong></div>' +
       '<div class="span2"><span>Adresse</span><strong>' + esc(adresse || '—') + '</strong></div>' +
     '</div>' +
+    (isPret ? pretReceiptBody(op, nom, carteLabel, snap, montant, frais, company) : (
     '<table class="receipt-table">' +
       '<thead><tr><th>Désignation</th><th>Détails</th><th class="right">Montant</th></tr></thead>' +
       '<tbody>' +
@@ -251,7 +254,8 @@ function receiptHTML(op) {
     '<div class="receipt-amount"><span>Montant payé</span><strong>' + esc(money(montant)) + '</strong></div>' +
     '<p class="receipt-note">Je soussigné(e) <strong>' + esc(nom) + '</strong> reconnais avoir reçu la somme de <strong>' + esc(money(montant)) +
       '</strong> des mains de <strong>' + esc(company.nom || 'mon collecteur') + '</strong>, au titre de la carte d’épargne <strong>' + esc(carteLabel) +
-      '</strong>. Ce document vaut accusé de réception et preuve de paiement.</p>' +
+      '</strong>. Ce document vaut accusé de réception et preuve de paiement.</p>'
+    )) +
     '<div class="receipt-sign">' +
       '<div><span>Signature du collecteur</span><i></i></div>' +
       '<div><span>Signature du client</span><i></i></div>' +
@@ -261,6 +265,23 @@ function receiptHTML(op) {
       '<span>' + esc(company.nom || '') + ' · ' + esc(company.telephone || '') + '</span>' +
     '</div>' +
     '</div>';
+}
+
+/* Corps du reçu d'avance : le client reconnaît la dette et son remboursement par cotisations. */
+function pretReceiptBody(op, nom, carteLabel, snap, montant, frais, company) {
+  return '<table class="receipt-table">' +
+      '<thead><tr><th>Désignation</th><th>Détails</th><th class="right">Montant</th></tr></thead>' +
+      '<tbody>' +
+        '<tr><td>' + esc(carteLabel) + '</td><td>' + esc(numberFR(snap.montantJournalier || 0)) + ' / jour, jusqu’au ' + esc(fmtDate(snap.dateFin, 'short')) + '</td><td class="right">' + esc(money(snap.totalVerse || 0)) + '</td></tr>' +
+        '<tr class="receipt-pay"><td>Avance remise</td><td>' + esc(op.mode || 'Espèces') + '</td><td class="right">' + esc(money(montant)) + '</td></tr>' +
+        (frais > 0 ? '<tr><td>Frais</td><td>' + esc(op.fraisRegle && op.fraisRegle.type === 'pct' ? op.fraisRegle.valeur + ' %' : 'Montant fixe') + '</td><td class="right">' + esc(money(frais)) + '</td></tr>' : '') +
+        '<tr><td>Reste à rembourser</td><td>Par les prochaines cotisations</td><td class="right">' + esc(money(snap.doitApres || 0)) + '</td></tr>' +
+      '</tbody>' +
+    '</table>' +
+    '<div class="receipt-amount"><span>Avance remise</span><strong>' + esc(money(montant)) + '</strong></div>' +
+    '<p class="receipt-note">Je soussigné(e) <strong>' + esc(nom) + '</strong> reconnais avoir reçu de <strong>' + esc(company.nom || 'mon collecteur') +
+      '</strong> une avance de <strong>' + esc(money(montant)) + '</strong>' + (frais > 0 ? ' (frais : ' + esc(money(frais)) + ')' : '') +
+      ', que je rembourse par mes cotisations sur la carte <strong>' + esc(carteLabel) + '</strong>.</p>';
 }
 
 function openReceipt(opId) {

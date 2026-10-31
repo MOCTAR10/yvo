@@ -94,7 +94,7 @@ function dashboardGuards() {
       '<button type="button" class="btn sm primary" data-action="share-backup">Envoyer</button></div>');
   }
   if (hasData && syncCfg && (syncState.status === 'error' || syncState.status === 'offline')) {
-    out.push('<a class="guard amber" href="#/sync">' + icon('cloud', 22) + '<span><strong>' + (syncState.status === 'offline' ? 'Hors ligne' : 'Synchronisation en erreur') + '</strong><em>' + esc(syncStatusLabel()) + '</em></span>' + icon('chevron-right', 18) + '</a>');
+    out.push('<a class="guard amber" href="#/parametres">' + icon('cloud', 22) + '<span><strong>' + (syncState.status === 'offline' ? 'Hors ligne' : 'Synchronisation en erreur') + '</strong><em>' + esc(syncStatusLabel()) + '</em></span>' + icon('chevron-right', 18) + '</a>');
   }
   const todayHasMoney = db.versements.some(function (v) { return v.date === t && v.montant > 0; });
   if (todayHasMoney && !clotureOf(t) && new Date().getHours() >= 16) {

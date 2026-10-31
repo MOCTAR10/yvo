@@ -1,7 +1,7 @@
 /* YVO Épargne — service worker (hors ligne) */
 'use strict';
 
-const CACHE = 'yvo-epargne-v2.4.0';
+const CACHE = 'yvo-epargne-v3.0.0';
 const ASSETS = [
   './index.html',
   './styles.css',
@@ -26,6 +26,7 @@ const ASSETS = [
   './js/receipt-code.js',
   './js/sync.js',
   './js/recus.js',
+  './js/avances.js',
   './js/alertes.js',
   './js/views-commission.js',
   './js/views-sync.js',

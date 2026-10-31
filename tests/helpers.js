@@ -1,14 +1,27 @@
 // Outils partagés par les tests de non-régression.
 const { expect } = require('@playwright/test');
 
-/* Ouvre l'application déjà authentifiée (la connexion elle-même est testée dans login.spec.js). */
-async function openApp(page, { demo = true } = {}) {
-  const errors = trackErrors(page);
-  await page.addInitScript(() => sessionStorage.setItem('yvo-acces', '1'));
+const PASSWORD = process.env.YVO_PASSWORD;
+
+/* Réponse de synchronisation neutre : garde chaque test isolé
+   (tous les tests partagent le même compte Yvo sur le serveur de test). */
+const NO_SYNC = { ok: true, seq: 0, more: false, applied: [], conflicts: [], changes: [], serverTime: 0 };
+
+/* Connexion par l'écran « Bonjour Yvo ». */
+async function login(page, password = PASSWORD) {
+  if (!password) throw new Error('YVO_PASSWORD absent : définissez-le (secret GitHub en CI).');
   await page.goto('/');
-  await expect(page.locator('#welcome')).toBeVisible();
-  await page.click(demo ? '[data-action="welcome-demo"]' : '[data-action="welcome-empty"]');
+  await page.fill('#unlock-pin', password);
+  await page.click('.login-btn');
   await expect(page.locator('#app')).toBeVisible();
+}
+
+/* Ouvre l'application connectée, avec les données de démonstration par défaut. */
+async function openApp(page, { demo = true, sync = false } = {}) {
+  const errors = trackErrors(page);
+  if (!sync) await page.route('**/api/sync', route => route.fulfill({ json: NO_SYNC }));
+  await login(page);
+  if (demo) await page.evaluate(() => { db = buildDemoDB(); saveDB(); rerender(); });
   await page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));
   return errors;
 }
@@ -33,4 +46,4 @@ async function goto(page, route) {
   await expect(page.locator('#view')).not.toBeEmpty();
 }
 
-module.exports = { openApp, trackErrors, clientsToPoint, goto };
+module.exports = { PASSWORD, login, openApp, trackErrors, clientsToPoint, goto };

@@ -137,32 +137,28 @@ function computeAlerts() {
     add('info', 'stockage', 'Données pas assez protégées', 'Ajoutez l’application à l’écran d’accueil et activez la sauvegarde en ligne.', '#/parametres', 1);
   }
   if (storageInfo.error) {
-    add('critique', 'stockage-err', 'Erreur d’enregistrement', 'La sauvegarde locale a échoué : ' + storageInfo.error + '. Exportez vos données tout de suite.', '#/parametres', storageInfo.error);
-  }
-  const lastExport = db.settings.lastBackup;
-  if (db.clients.length && (!lastExport || diffDays(lastExport.slice(0, 10), t) > 14) && !syncCfg) {
-    add('info', 'export', 'Aucune sauvegarde récente', 'Sans synchronisation, exportez vos données régulièrement (Paramètres) pour ne rien perdre si le téléphone est perdu.', '#/parametres', 1);
+    add('critique', 'stockage-err', 'Erreur d’enregistrement', 'La sauvegarde locale a échoué : ' + storageInfo.error + '. Gardez le réseau allumé pour que tout parte sur le serveur.', '#/parametres', storageInfo.error);
   }
 
   /* 17. Synchronisation */
   if (!syncCfg && db.clients.length) {
-    add('important', 'sync-off', 'Pas de sauvegarde en ligne', 'Si le téléphone est perdu, les données le sont aussi. Activez la sauvegarde en ligne.', '#/sync', 1);
+    add('important', 'sync-off', 'Données pas encore en ligne', 'Verrouillez puis reconnectez-vous avec Internet : vos données partiront sur le serveur.', '#/parametres', 1);
   }
   if (syncCfg) {
     if (syncState.status === 'error') {
-      add('critique', 'sync-err', 'La sauvegarde en ligne a un problème', syncState.error || 'Erreur inconnue.', '#/sync', syncState.error);
+      add('critique', 'sync-err', 'La sauvegarde en ligne a un problème', syncState.error || 'Erreur inconnue.', '#/parametres', syncState.error);
     }
     const last = syncCfg.lastOkAt;
     if (last && Date.now() - last > 3 * 86400000) {
       add('important', 'sync-vieux', 'Pas de sauvegarde en ligne depuis ' + Math.floor((Date.now() - last) / 86400000) + ' jours',
-        'Les dernières modifications ne sont pas encore sauvegardées en ligne.', '#/sync', Math.floor((Date.now() - last) / 86400000));
+        'Les dernières modifications ne sont pas encore sauvegardées en ligne.', '#/parametres', Math.floor((Date.now() - last) / 86400000));
     }
     const pend = typeof countPending === 'function' ? countPending() : 0;
     if (pend > 0 && Date.now() - (last || 0) > 86400000) {
-      add('info', 'sync-attente', pend + ' modification(s) en attente d’envoi', 'Elles partiront dès que la connexion revient.', '#/sync', pend);
+      add('info', 'sync-attente', pend + ' modification(s) en attente d’envoi', 'Elles partiront dès que la connexion revient.', '#/parametres', pend);
     }
     syncState.conflicts.slice(0, 5).forEach(function (cf) {
-      add('important', 'conflit-' + cf.kind + cf.id, 'Deux appareils ont modifié la même fiche', 'La version la plus récente a été gardée. L’autre est conservée dans l’historique.', '#/sync', cf.at);
+      add('important', 'conflit-' + cf.kind + cf.id, 'Deux appareils ont modifié la même fiche', 'La version la plus récente a été gardée. L’autre est conservée dans l’historique.', '#/parametres', cf.at);
     });
   }
 

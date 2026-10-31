@@ -101,9 +101,6 @@ function handleExtraAction(action, el) {
     }
 
     /* ---------- synchronisation ---------- */
-    case 'welcome-connect':
-      openWelcomeConnect();
-      return true;
     case 'sync-now':
       syncNow(true).then(function () { loadSyncInfo(); });
       return true;

@@ -28,13 +28,14 @@ function boot() {
   registerSW();
   initStorageGuards();
 
+  if (typeof initSync === 'function') initSync();
+
   loadBestDB().then(function (res) {
     if (!res) {
-      requireAccess(showWelcome);
+      requireAccess(enterSpace);
       return;
     }
     db = normalizeDB(res.data);
-    if (typeof initSync === 'function') initSync();
     if (res.source === 'local' && storageInfo.idb) { idbDirty = true; flushIdb(); }
     if (res.source === 'snapshot') {
       setTimeout(function () { toast('Données récupérées depuis le point de restauration du ' + fmtDateTime(storageInfo.recovered) + '.', 'info'); }, 600);
@@ -45,8 +46,24 @@ function boot() {
       const today = new Date().toISOString().slice(0, 10);
       if (!list.length || list[0].id.slice(0, 10) !== today) takeSnapshot('quotidien');
     });
-    requireAccess(startApp);
+    requireAccess(enterSpace);
   });
+}
+
+/* Après la connexion : les données du téléphone s'affichent tout de suite,
+   puis le serveur complète en arrière-plan (premier lancement : tout arrive du serveur). */
+function enterSpace() {
+  if (!db) {
+    db = emptyDB();
+    saveDB();
+    requestPersistence();
+  }
+  startApp();
+  if (syncCfg) {
+    syncNow(false).then(function () {
+      if (!state.locked && !document.querySelector('.modal')) rerender();
+    });
+  }
 }
 
 /* L'application est réservée à Yvo : mot de passe à chaque ouverture.
@@ -84,7 +101,7 @@ function buildNav() {
   const act = document.getElementById('mb-actions');
   if (act) {
     act.innerHTML =
-      '<a class="icon-btn sync-pill" data-sync-pill href="#/sync" aria-label="Synchronisation">' + icon('cloud', 21) + '</a>' +
+      '<span class="icon-btn sync-pill" data-sync-pill role="status" aria-label="Synchronisation">' + icon('cloud', 21) + '</span>' +
       '<a class="icon-btn bell" href="#/alertes" aria-label="Alertes">' + icon('bell', 21) + '<i class="bell-badge" data-alert-badge hidden></i></a>' +
       '<button type="button" class="icon-btn" id="mb-lock" data-action="lock-now" aria-label="Verrouiller" hidden>' + icon('lock', 21) + '</button>';
   }
@@ -262,59 +279,6 @@ function refreshSnapshotList() {
 }
 
 /* ------------------------------------------------------------
-   Écran d’accueil
-   ------------------------------------------------------------ */
-
-function showWelcome() {
-  const welcome = document.getElementById('welcome');
-  const app = document.getElementById('app');
-  const lock = document.getElementById('lock-screen');
-  if (app) app.hidden = true;
-  if (lock) lock.hidden = true;
-  if (!welcome) return;
-  welcome.hidden = false;
-  welcome.innerHTML =
-    '<div class="welcome-wrap">' +
-      '<div class="welcome-visual" aria-hidden="true">' +
-        '<div class="wv-glow"></div>' +
-        '<div class="wv-card wv-card-main">' +
-          '<div class="wv-card-top"><span class="wv-dot"></span><span>Caisse disponible</span>' + icon('wallet', 16) + '</div>' +
-          '<strong class="wv-amount">1 245 000 FCFA</strong>' +
-          '<div class="wv-bars"><i style="height:38%"></i><i style="height:62%"></i><i style="height:51%"></i><i style="height:82%"></i><i style="height:68%"></i><i style="height:94%"></i><i style="height:73%"></i></div>' +
-        '</div>' +
-        '<div class="wv-card wv-card-cal">' +
-          '<div class="wv-cal-head"><strong>Pointage</strong><span>Octobre</span></div>' +
-          '<div class="wv-cal">' +
-            '<i class="c"></i><i class="c"></i><i class="a"></i><i class="c"></i><i class="m"></i><i class="c"></i><i class="c"></i>' +
-            '<i class="c"></i><i class="c"></i><i class="c"></i><i class="a"></i><i class="c"></i><i class="m"></i><i class="c"></i>' +
-            '<i class="c"></i><i class="c"></i><i class="c"></i><i class="c"></i><i class="c"></i><i class="a"></i><i class="t"></i>' +
-          '</div>' +
-        '</div>' +
-        '<div class="wv-card wv-card-receipt">' + icon('receipt', 18) + '<div><strong>Reçu généré</strong><span>REC-2026-0042</span></div></div>' +
-      '</div>' +
-      '<div class="welcome-copy">' +
-        '<div class="welcome-brand"><span class="brand-mark">Y</span><div class="brand-text"><strong>YVO Épargne</strong><small>Collecte & épargne</small></div></div>' +
-        '<div class="eyebrow">100 % hors ligne · pensé pour le terrain</div>' +
-        '<h1>Votre collecte,<br><em>enfin maîtrisée.</em></h1>' +
-        '<p class="welcome-lead">Clients, quartiers, versements libres, trésorerie, clôture de caisse et reçus. Tout au même endroit, sans internet.</p>' +
-        '<ul class="welcome-features">' +
-          '<li>' + icon('check', 16) + '<span><strong>Rien n’est perdu</strong> — chaque action est enregistrée aussitôt, avec points de restauration et corbeille.</span></li>' +
-          '<li>' + icon('check', 16) + '<span><strong>Le client verse quand il peut</strong> — saisissez le montant reçu, le statut se calcule seul.</span></li>' +
-          '<li>' + icon('check', 16) + '<span><strong>Contrôle de l’argent</strong> — retards, clients à relancer, clôture de caisse et écarts.</span></li>' +
-          '<li>' + icon('check', 16) + '<span><strong>Reçus & WhatsApp</strong> — preuve de paiement pour chaque client.</span></li>' +
-        '</ul>' +
-        '<div class="welcome-actions">' +
-          '<button type="button" class="btn primary lg" data-action="welcome-empty">' + icon('plus', 17) + ' Commencer à zéro</button>' +
-          '<button type="button" class="btn ghost lg" data-action="welcome-demo">Explorer la démonstration</button>' +
-          '<button type="button" class="btn ghost lg" data-action="welcome-connect">' + icon('cloud', 17) + ' Retrouver mes données</button>' +
-        '</div>' +
-        '<label class="btn ghost file-btn welcome-import">' + icon('upload', 15) + ' J’ai déjà une sauvegarde<input type="file" id="import-file" accept="application/json,.json" hidden></label>' +
-        '<p class="welcome-note">' + icon('shield', 14) + ' Vos données restent sur cet appareil et sont enregistrées en continu.</p>' +
-      '</div>' +
-    '</div>';
-}
-
-/* ------------------------------------------------------------
    Verrouillage
    ------------------------------------------------------------ */
 
@@ -351,6 +315,44 @@ function showLock() {
     const input = document.getElementById('unlock-pin');
     if (input) input.focus();
   }, 120);
+}
+
+/* Le mot de passe est vérifié par le serveur. Sans réseau, on le compare à une
+   empreinte salée gardée sur ce téléphone depuis la dernière connexion réussie. */
+const OFFLINE_KEY = 'yvo-acces-local';
+
+function loginWithPassword(password) {
+  const device = {
+    id: (syncCfg && syncCfg.deviceId) || newDeviceId(),
+    name: (syncCfg && syncCfg.deviceName) || deviceDefaultName()
+  };
+  return syncApi('/api/login', { password: password, device: device }, 'none').then(function (r) {
+    const prev = syncCfg;
+    syncCfg = {
+      server: '', token: r.token, account: r.account, deviceId: device.id, deviceName: device.name,
+      lastSeq: prev && prev.account === r.account ? prev.lastSeq || 0 : 0,
+      lastOkAt: prev ? prev.lastOkAt || null : null
+    };
+    saveSyncCfg();
+    syncState.status = 'idle';
+    syncState.error = null;
+    rememberOfflinePassword(password);
+    return 'ok';
+  }).catch(function (err) {
+    if (err && err.status === 401) return 'bad';
+    if (err && err.status === 429) return 'limit';
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(OFFLINE_KEY) || 'null'); } catch (e) { /* ignore */ }
+    if (!saved || !saved.salt) return 'first-online';
+    return sha256(saved.salt + password) === saved.hash ? 'ok' : 'bad';
+  });
+}
+
+function rememberOfflinePassword(password) {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  const salt = Array.from(bytes).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+  try { localStorage.setItem(OFFLINE_KEY, JSON.stringify({ salt: salt, hash: sha256(salt + password) })); } catch (err) { /* ignore */ }
 }
 
 /* Après 5 erreurs, 30 secondes d'attente (limite les essais au hasard). */
@@ -504,24 +506,6 @@ function handleAction(action, el, e) {
   let keepDefault = false;
 
   switch (action) {
-    case 'welcome-empty':
-      db = emptyDB();
-      saveDB();
-      requestPersistence();
-      takeSnapshot('quotidien');
-      startApp();
-      navigate('#/tableau');
-      setTimeout(openGuideCompany, 350);
-      break;
-
-    case 'welcome-demo':
-      db = buildDemoDB();
-      saveDB();
-      startApp();
-      navigate('#/tableau');
-      toast('Mode démonstration chargé. Les données sont fictives.', 'info');
-      break;
-
     case 'lock-now':
       lockApp();
       break;
@@ -733,7 +717,11 @@ function handleAction(action, el, e) {
       break;
 
     case 'open-receipt':
-      if (opId) openReceipt(opId);
+      if (opId || el.getAttribute('data-id')) openReceipt(opId || el.getAttribute('data-id'));
+      break;
+
+    case 'new-pret':
+      if (clientId) openPretModal(clientId, carteId);
       break;
 
     case 'print-receipt':
@@ -1018,28 +1006,44 @@ function handleForm(type, form, submitter) {
   if (type === 'unlock') {
     const error = document.getElementById('lock-error');
     const input = document.getElementById('unlock-pin');
+    const btn = form.querySelector('.login-btn');
     const wait = loginWaitSeconds();
     if (wait > 0) {
       if (error) error.textContent = 'Trop d’essais. Patientez ' + wait + ' s.';
       return;
     }
-    if (checkAccessPassword(f.get('pin') || '')) {
-      try { sessionStorage.setItem('yvo-acces', '1'); localStorage.removeItem('yvo-acces-echecs'); } catch (err) { /* ignore */ }
-      const card = document.querySelector('.login-card');
-      if (card) card.classList.add('is-ok');
-      const next = afterAccess || startApp;
-      afterAccess = null;
-      setTimeout(next, 260);
-    } else {
-      const fails = loginFailed();
-      if (error) error.textContent = fails >= 5 ? 'Trop d’essais. Patientez 30 s.' : 'Mot de passe incorrect.';
+    const password = String(f.get('pin') || '');
+    if (!password) return;
+    if (btn) btn.disabled = true;
+    if (error) error.textContent = '';
+    loginWithPassword(password).then(function (res) {
+      if (btn) btn.disabled = false;
+      if (res === 'ok') {
+        try { sessionStorage.setItem('yvo-acces', '1'); localStorage.removeItem('yvo-acces-echecs'); } catch (err) { /* ignore */ }
+        const card = document.querySelector('.login-card');
+        if (card) card.classList.add('is-ok');
+        const next = afterAccess || startApp;
+        afterAccess = null;
+        setTimeout(next, 260);
+        return;
+      }
+      let msg = 'Mot de passe incorrect.';
+      if (res === 'limit') msg = 'Trop d’essais. Patientez quelques minutes.';
+      else if (res === 'first-online') msg = 'Première connexion sur ce téléphone : il faut Internet.';
+      else if (loginFailed() >= 5) msg = 'Trop d’essais. Patientez 30 s.';
+      if (error) error.textContent = msg;
       const card = document.querySelector('.login-card');
       if (card) { card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake'); }
       if (input) {
         input.value = '';
         input.focus();
       }
-    }
+    });
+    return;
+  }
+
+  if (type === 'save-pret') {
+    savePret(form);
     return;
   }
 
@@ -1354,20 +1358,18 @@ function handleForm(type, form, submitter) {
   if (type === 'settings-company') {
     const nom = String(f.get('nom') || '').trim();
     if (!nom) return toast('Le nom de l’entreprise est obligatoire.', 'error');
-    db.settings.company = {
+    const prevCo = db.settings.company;
+    const field = function (k) { return f.has(k) ? String(f.get(k) || '').trim() : (prevCo[k] || ''); };
+    db.settings.company = Object.assign({}, prevCo, {
       nom: nom,
-      responsable: String(f.get('responsable') || '').trim(),
-      telephone: String(f.get('telephone') || '').trim(),
-      email: String(f.get('email') || '').trim(),
-      adresse: String(f.get('adresse') || '').trim(),
-      ville: String(f.get('ville') || '').trim(),
-      activite: String(f.get('activite') || '').trim()
-    };
-    db.settings.indicatif = String(f.get('indicatif') || '').replace(/\D/g, '');
-    logActivity('systeme', 'Informations de l’entreprise modifiées.');
+      responsable: field('responsable'),
+      telephone: field('telephone')
+    });
+    if (f.has('indicatif')) db.settings.indicatif = String(f.get('indicatif') || '').replace(/\D/g, '');
+    logActivity('systeme', 'Profil modifié.');
     saveDB();
     rerender();
-    toast('Informations entreprise enregistrées.', 'success');
+    toast('Profil enregistré.', 'success');
     return;
   }
 
