@@ -761,3 +761,123 @@ details.dash-more { margin-top: 16px; }
 @keyframes login-shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
 @media (prefers-reduced-motion: reduce) { .login-card, .login-card.shake, .login-card.is-ok { animation: none; } }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- Fiche client (calendrier) ---------- */
+/* En-tête : identité, contact, 3 chiffres clés, gros bouton Encaisser */
+.fc-hero { padding: 18px; }
+.fc-id { display: flex; align-items: center; gap: 14px; }
+.fc-id .avatar-lg { width: 60px; height: 60px; border-radius: 18px; flex: none; }
+.fc-id-main { min-width: 0; flex: 1; }
+.fc-id-main h1 { font-size: 26px; line-height: 1.1; margin: 0; overflow-wrap: anywhere; }
+.fc-id-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 13.5px; color: var(--ink-2); }
+.fc-id-meta span { display: inline-flex; align-items: center; gap: 5px; }
+.fc-id-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.fc-id-badges:empty { display: none; }
+.fc-contact { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+.fc-contact .contact-btn { height: 50px; font-size: 15px; border-radius: 15px; }
+.fc-figs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
+.fc-fig { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 11px 12px; border-radius: 15px; background: var(--surface-2); border: 1px solid var(--line); }
+.fc-fig span { font-size: 11.5px; font-weight: 650; color: var(--muted); }
+.fc-fig strong { font-family: var(--serif); font-size: 19px; font-weight: 600; line-height: 1.15; overflow-wrap: anywhere; }
+.fc-fig em { font-style: normal; font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 3px; line-height: 1.3; }
+.fc-fig-late { background: var(--red-bg); border-color: #f0c8c3; }
+.fc-fig-late strong, .fc-fig-late em { color: var(--red); }
+.fc-fig-ok { background: var(--green-bg); border-color: #bfe1cf; }
+.fc-fig-ok strong, .fc-fig-ok em { color: var(--green); }
+.fc-fig-today.ok em { color: var(--green); font-weight: 650; }
+.fc-pay-btn { width: 100%; height: 58px; margin-top: 14px; font-size: 17px; border-radius: 16px; gap: 9px; }
+.fc-actions { display: flex; gap: 8px; margin-top: 12px; }
+.fc-actions .btn { min-height: 44px; flex: 1; min-width: 0; padding: 0 8px; white-space: nowrap; }
+.fc-actions .icon-btn { width: 44px; height: 44px; flex: none; }
+
+/* Avancement de la carte */
+.fc-progress { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+.fc-prog { padding: 12px 13px; border-radius: 15px; background: var(--surface-2); border: 1px solid var(--line); min-width: 0; }
+.fc-prog-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.fc-prog-head span { font-size: 12px; font-weight: 650; color: var(--muted); }
+.fc-prog-head strong { font-size: 14.5px; text-align: right; }
+.fc-prog-head em { font-style: normal; font-weight: 500; font-size: 12px; color: var(--muted); }
+.fc-prog .progress { height: 9px; }
+.progress.blue > span { background: linear-gradient(90deg, #2f628c, #6d9cc4); }
+.fc-prog-foot { display: flex; justify-content: space-between; gap: 6px; margin-top: 7px; font-size: 11.5px; color: var(--muted); }
+.fc-prog-foot b { color: var(--ink-2); font-weight: 650; }
+.fc-card-figs { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.fc-card-figs div { display: flex; flex-direction: column; gap: 2px; padding: 9px 11px; border-radius: 13px; border: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.fc-card-figs span { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.fc-card-figs strong { font-size: 14.5px; line-height: 1.25; }
+.fc-more .mini-stats { margin-top: 10px; }
+.fc-more-line { margin: 8px 2px 0; }
+
+/* Calendrier : grand, lisible, une couleur par situation */
+.fc-cal { padding: 14px; }
+.fc-cal .cal-head { margin-bottom: 12px; }
+.fc-cal .fc-cal-nav { width: 46px; height: 46px; border-radius: 14px; flex: none; }
+.fc-cal .cal-title strong { font-size: 19px; }
+.fc-cal .cal-title span { font-size: 12px; }
+.fc-cal-today { border: 0; background: none; padding: 4px 6px; font-size: 12.5px; font-weight: 650; color: var(--brand); text-decoration: underline; cursor: pointer; }
+.fc-cal .cal-weekdays span { font-size: 11px; text-transform: none; letter-spacing: 0; }
+.fc-cal .cal-day { min-height: 54px; padding: 5px 6px; cursor: pointer; }
+.fc-cal .cal-day:disabled { cursor: default; }
+.fc-cal .cal-empty { min-height: 54px; }
+.fc-cal .cal-day .dnum { font-size: 13px; }
+.fc-cal .cal-day .damt { font-size: 9.5px; }
+.fc-cal .cal-day.today { box-shadow: 0 0 0 2.5px var(--brand); }
+.fc-cal .cal-day.out { opacity: 0.35; }
+.fc-cal .cal-day.missed { background: var(--red-bg); border: 1px dashed #dfa9a1; color: #8c3029; }
+.cal-marks { position: absolute; top: 4px; right: 4px; display: flex; gap: 2px; }
+.cal-mm { display: block; width: 15px; height: 15px; border-radius: 4px; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08); overflow: hidden; }
+.cal-mm img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.fc-cal-sum { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 13.5px; color: var(--ink-2); }
+.fc-cal-sum p { margin: 0; }
+.fc-cal-sum div { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 12.5px; font-weight: 600; }
+.fc-cal-sum .blue { color: var(--blue); }
+.fc-legend { display: flex; flex-wrap: wrap; gap: 7px 14px; margin-top: 10px; font-size: 12px; color: var(--ink-2); }
+.fc-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.fc-legend .lg { width: 14px; height: 14px; border-radius: 4px; }
+.fc-legend-mm img { height: 15px; width: auto; border-radius: 3px; }
+.fc-cal-hint { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+
+/* Derniers versements */
+.fc-pay-list { display: grid; gap: 6px; }
+.fc-pay {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 58px; padding: 8px 12px;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--surface); text-align: left; cursor: pointer; color: inherit; font: inherit;
+}
+.fc-pay:active { transform: scale(0.99); }
+.fc-pay-ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--surface-2); flex: none; color: var(--green); }
+.fc-pay-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.fc-pay-main strong { font-size: 15px; }
+.fc-pay-main em { font-style: normal; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fc-pay-main .fc-pay-ref { font-family: ui-monospace, monospace; font-size: 11.5px; }
+.fc-pay-mode { font-size: 12px; font-weight: 650; color: var(--muted); flex: none; }
+.fc-pay.mode-airtel .fc-pay-mode { color: #c4040f; }
+.fc-pay.mode-moov .fc-pay-mode { color: #d35f00; }
+
+@media (min-width: 981px) {
+  .client-page { max-width: 920px; margin: 0 auto; }
+  .fc-hero { padding: 24px; }
+  .fc-id-main h1 { font-size: 30px; }
+  .fc-contact { display: flex; }
+  .fc-contact .contact-btn { min-width: 160px; }
+  .fc-pay-list { grid-template-columns: 1fr 1fr; }
+  .fc-cal .cal-day { min-height: 64px; }
+  .fc-cal .cal-empty { min-height: 64px; }
+}
+
+@media (max-width: 560px) {
+  .fc-hero { padding: 16px; }
+  .fc-id-main h1 { font-size: 23px; }
+  .fc-figs { gap: 6px; }
+  .fc-fig { padding: 9px; border-radius: 13px; }
+  .fc-fig strong { font-size: 15.5px; }
+  .fc-fig span, .fc-fig em { font-size: 11px; }
+  .fc-progress { grid-template-columns: 1fr; }
+  .fc-cal { padding: 10px; }
+  .fc-cal .cal-weekdays, .fc-cal .cal-grid { gap: 4px; }
+  .fc-cal .cal-day { min-height: 48px; padding: 4px; border-radius: 9px; }
+  .fc-cal .cal-empty { min-height: 48px; }
+  .fc-cal .cal-day .dnum { font-size: 12px; }
+  .fc-cal .cal-day .damt { display: block; font-size: 8.5px; }
+  .cal-marks { top: 3px; right: 3px; }
+  .cal-mm { width: 13px; height: 13px; }
+}
