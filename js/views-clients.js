@@ -212,13 +212,13 @@ function calendarHTML(carte) {
       if (marks) mobile = true;
     }
     if (cell.iso === t) { cls += ' today'; label += ' · aujourd’hui'; }
-    /* ✓ = jour déjà pointé (la couleur dit comment il a été payé) */
+    /* ✓ = jour déjà pointé (la couleur dit comment il a été payé) ; ✕ = pointé « pas payé » */
     if (d.v && d.inPeriod) { cls += ' pointed'; label += ' · pointé'; }
     return '<button type="button" class="' + cls + '" data-date="' + esc(cell.iso) + '"' +
       (d.inPeriod ? ' data-action="open-day" data-carte="' + esc(carte.id) + '"' : ' disabled') +
       ' title="' + esc(label) + '" aria-label="' + esc(label) + '">' +
       '<span class="cal-top"><span class="dnum">' + cell.day + '</span>' +
-        (d.v && d.inPeriod ? '<i class="cal-check" aria-hidden="true">✓</i>' : '') + '</span>' +
+        (d.v && d.inPeriod ? '<i class="cal-check" aria-hidden="true">' + (d.v.statut === 'absent' ? '✕' : '✓') + '</i>' : '') + '</span>' +
       '<span class="cal-bot">' +
         (d.montant > 0 ? '<span class="damt">' + numberFR(d.montant) + '</span>' : '') +
         (marks ? '<span class="cal-marks">' + marks + '</span>' : '') +
@@ -255,6 +255,7 @@ function calendarHTML(carte) {
       '<span><i class="lg future"></i> À venir</span>' +
       '<span><i class="lg today"></i> Aujourd’hui</span>' +
       '<span><i class="cal-check">✓</i> Déjà pointé</span>' +
+      '<span><i class="cal-check is-no">✕</i> Pointé « pas payé »</span>' +
       (mobile ? '<span class="fc-legend-mm"><img src="' + PAY_MODE_LOGOS.airtel + '" alt=""><img src="' + PAY_MODE_LOGOS.moov + '" alt=""> Payé par mobile money</span>' : '') +
     '</div>' +
     '<p class="fc-cal-hint">' + icon('eye', 13) + ' Touchez un jour pour voir ou corriger le paiement.</p>' +
@@ -283,6 +284,10 @@ function cardProgressHTML(carte, tot, active) {
         ? '<div><span>Commission</span><strong class="amber">' + esc(money(tot.commission)) + '</strong></div>'
         : '<div><span>À rendre</span><strong>' + esc(money(tot.solde)) + '</strong></div>') +
     '</div>' +
+    (tot.resteARembourser > 0
+      ? '<div class="fc-pret">' + icon('banknote', 17) + '<span>Avance d’argent : reste à rembourser <strong>' + esc(money(tot.resteARembourser)) + '</strong>' +
+          '<em>Ses prochaines cotisations remboursent d’abord l’avance.</em></span></div>'
+      : '') +
   '</div>';
 }
 
@@ -487,7 +492,7 @@ function viewClient(id) {
       '</div>' +
       (client.telephone ? '<div class="fc-contact">' + contactButtons(client, msg, false) + '</div>' : '') +
       '<div class="fc-figs">' +
-        '<div class="fc-fig"><span>Total cotisé</span><strong>' + esc(money(tot.totalVerse)) + '</strong><em>À rendre : ' + esc(money(tot.solde, true)) + '</em></div>' +
+        '<div class="fc-fig"><span>Total cotisé</span><strong>' + esc(money(tot.totalVerse)) + '</strong><em>' + (tot.resteARembourser > 0 ? 'Doit encore : ' + esc(money(tot.resteARembourser, true)) : 'À rendre : ' + esc(money(tot.solde, true))) + '</em></div>' +
         (tot.retard > 0
           ? '<div class="fc-fig fc-fig-late"><span>Retard</span><strong>' + esc(money(tot.retard)) + '</strong><em>' + (risk.jours > 0 ? risk.jours + ' jour' + (risk.jours > 1 ? 's' : '') + ' sans payer' : 'À rattraper') + '</em></div>'
           : '<div class="fc-fig fc-fig-ok"><span>Retard</span><strong>À jour</strong><em>' + icon('check', 13) + ' Rien en retard</em></div>') +

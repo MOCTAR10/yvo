@@ -191,7 +191,10 @@ test('chaque jour pointé porte un ✓ et les cases restent assez grandes', asyn
   expect(res.bad).toEqual([]);
   expect(res.minW).toBeGreaterThanOrEqual(36);
   expect(res.minH).toBeGreaterThanOrEqual(36);
-  await expect(page.locator('#carte-' + info.carte + ' .cal-day.pointed .cal-check').first()).toHaveText('✓');
+  await expect(page.locator('#carte-' + info.carte + ' .cal-day.pointed.complet .cal-check').first()).toHaveText('✓');
+  // un jour pointé « pas payé » porte une croix, pas une coche (lisible pour un débutant)
+  const absent = page.locator('.cal-day.pointed.absent .cal-check');
+  if (await absent.count()) await expect(absent.first()).toHaveText('✕');
 });
 
 test('la fiche ne déborde pas horizontalement', async ({ page }) => {

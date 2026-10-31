@@ -85,3 +85,16 @@ test.describe('Avance d’argent', () => {
     expect(await page.evaluate(() => STATUT_LABELS.avance)).toBe('En avance');
   });
 });
+
+test('fiche client : bouton « Avance d’argent » sur la carte et reste à rembourser affiché', async ({ page }) => {
+  const errors = await openApp(page);
+  const c = await page.evaluate(() => db.cartes.find(x => x.statut === 'active'));
+  await page.evaluate(id => { location.hash = '#/client/' + id; }, c.clientId);
+  await page.locator('#carte-' + c.id + ' [data-action="new-pret"]').click();
+  await expect(page.locator('#form-pret')).toBeVisible();
+  const solde = await page.evaluate(id => cardTotals(carteById(id)).solde, c.id);
+  await page.fill('#pret-montant', String(solde + 3000));
+  await page.click('button[form="form-pret"]');
+  await expect(page.locator('#carte-' + c.id + ' .fc-pret')).toContainText('3 000');
+  expect(errors).toEqual([]);
+});

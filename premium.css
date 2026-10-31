@@ -716,6 +716,9 @@ details.dash-more { margin-top: 16px; }
 .pret-preview .total { padding-top: 6px; border-top: 1px dashed var(--line); font-size: 14.5px; }
 .pret-preview .total strong { color: var(--amber); }
 .pret-preview.warn { background: #fff4e5; }
+.fc-pret { display: flex; gap: 10px; align-items: flex-start; margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: #fff4e5; color: #8a4a08; font-size: 13px; }
+.fc-pret span { display: grid; gap: 2px; }
+.fc-pret em { font-style: normal; font-size: 11.5px; color: #a1520b; }
 .pret-alert { display: flex; gap: 6px; align-items: flex-start; margin: 4px 0 0; color: #a1520b; font-weight: 600; font-size: 12.5px; }
 
 /* ---------- Connexion : espace privé de Yvo ---------- */
@@ -931,6 +934,7 @@ details.dash-more { margin-top: 16px; }
 .cal-day.avance .cal-check { background: #2f628c; color: #fff; }
 .cal-day.absent .cal-check { background: #a63c33; color: #fff; }
 .fc-legend .cal-check { background: var(--brand); color: #fff; }
+.fc-legend .cal-check.is-no { background: #a63c33; }
 
 @media (min-width: 981px) {
   .vcard.fc-card { padding: 22px 24px; }
