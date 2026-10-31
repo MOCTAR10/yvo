@@ -225,7 +225,7 @@ function viewTresorerie() {
       '<div class="panel-head"><div><h2>Journal de caisse</h2><p class="panel-sub">' + numberFR(movements.length) + ' mouvement' + (movements.length > 1 ? 's' : '') + ' sur la période.</p></div>' +
         '<div class="journal-tools">' +
           '<select id="treasury-type" class="select-sm">' +
-            '<option value="tout"' + (state.treasuryType === 'tout' ? ' selected' : '') + '>Tous les types</option>' +
+            '<option value="tout"' + (state.treasuryType === 'tout' ? ' selected' : '') + '>Tout</option>' +
             '<option value="entrees"' + (state.treasuryType === 'entrees' ? ' selected' : '') + '>Entrées</option>' +
             '<option value="sorties"' + (state.treasuryType === 'sorties' ? ' selected' : '') + '>Sorties</option>' +
             '<option value="retraits"' + (state.treasuryType === 'retraits' ? ' selected' : '') + '>Retraits clients</option>' +

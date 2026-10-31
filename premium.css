@@ -537,10 +537,14 @@ input, select, textarea { font-size: 16px; }
 
 .bell { position: relative; }
 .bell-badge { position: absolute; top: 2px; right: 0; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 99px; background: #d9483b; color: #fff; font: 700 10px/17px var(--sans); text-align: center; font-style: normal; }
-.sync-pill[data-sync="idle"] { color: #7be0ae; }
-.sync-pill[data-sync="syncing"] { animation: pulse 1s infinite; }
-.sync-pill[data-sync="offline"] { color: #f1c56b; }
-.sync-pill[data-sync="error"] { color: #ff9b8f; }
+/* Point de couleur sur le nuage : vert = à jour, orange = sans réseau, rouge = problème. */
+.sync-pill { position: relative; }
+.sync-pill::after { content: ''; position: absolute; right: 3px; bottom: 5px; width: 10px; height: 10px; border-radius: 50%; background: #9aa5a0; box-shadow: 0 0 0 2px #0b3d2e; }
+.sync-pill[data-sync="idle"]::after { background: #2ecc71; }
+.sync-pill[data-sync="syncing"]::after { background: #2ecc71; animation: pulse 1s infinite; }
+.sync-pill[data-sync="offline"]::after { background: #f1a33b; }
+.sync-pill[data-sync="error"]::after { background: #e5483b; }
+input::-ms-reveal, input::-ms-clear { display: none; }
 @keyframes pulse { 50% { opacity: .35; } }
 
 .alert-item { display: flex; gap: 12px; padding: 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); border-left: 5px solid var(--blue); box-shadow: var(--lift); }

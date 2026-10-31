@@ -17,9 +17,9 @@ function guideState() {
   return { flags: flags, current: current, all: current === -1 };
 }
 
+/* Yvo n'a rien à configurer (profil déjà rempli) : le guide de premier lancement ne s'affiche plus. */
 function guideActive() {
-  if (!db || db.settings.demo || db.settings.guideDismissed || db.settings.guideDone) return false;
-  return true;
+  return false;
 }
 
 function guidePayDate(carte) {
