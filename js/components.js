@@ -291,7 +291,7 @@ function openReceipt(opId) {
     return;
   }
   openModal({
-    title: 'Reçu de paiement',
+    title: op.categorie === 'pret' ? 'Reçu d’avance d’argent' : 'Reçu de paiement',
     subtitle: 'Accusé de réception · ' + esc(op.recuNumero || ''),
     size: 'large',
     body: receiptHTML(op),

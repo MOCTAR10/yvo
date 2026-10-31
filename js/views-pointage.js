@@ -29,6 +29,8 @@ function pointageEntries(date) {
     });
     let st = 'none';
     if (touched) st = paid <= 0 ? 'absent' : paid < expected ? 'partiel' : paid === expected ? 'complet' : 'avance';
+    /* Une carte du client pas encore pointée : la ligne reste à compléter. */
+    if ((st === 'complet' || st === 'avance') && cards.some(function (c) { return !versementFor(c.id, date); })) st = 'partiel';
     return { client: client, cards: cards, expected: expected, paid: paid, touched: touched, modes: modes, state: st, risk: clientRisk(client) };
   });
 }
@@ -138,7 +140,7 @@ function viewPointage() {
             : 'Aucune carte active ne couvre le ' + fmtDate(date, 'long') + '. Créez une carte depuis la fiche d’un client.',
           all.length ? '' : '<a class="btn ghost" href="#/clients">Voir les clients</a>'
         ) + '</div>') +
-    (all.length
+    (all.length && isToday
       ? '<a class="close-day-cta' + (closed ? ' done' : '') + '" href="#/cloture">' + icon(closed ? 'check-circle' : 'lock', 20) +
           '<span><strong>' + (closed ? 'Journée clôturée' : 'Clôturer la journée') + '</strong><em>' + (closed ? 'Écart constaté : ' + esc(money(closed.ecart)) : 'Comptez l’argent et vérifiez l’écart') + '</em></span>' + icon('chevron-right', 18) + '</a>'
       : '') +

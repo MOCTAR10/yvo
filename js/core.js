@@ -120,6 +120,32 @@ function versementModes(v) {
   return out;
 }
 
+/* Correction d'un jour déjà pointé : nouveau total « montant » dans le mode choisi.
+   Une baisse se retire d'abord du mode choisi puis des autres (jamais de mode négatif) ;
+   à montant égal, un jour payé dans un seul mode passe entièrement dans le nouveau mode.
+   À appeler AVANT de changer v.montant. Renvoie vrai si l'historique a changé. */
+function correctVersementModes(v, montant, mode, at) {
+  const before = Number(v.montant) || 0;
+  const cur = versementModes(v);
+  const diff = montant - before;
+  const entries = [];
+  if (diff > 0) {
+    entries.push({ montant: diff, mode: mode });
+  } else if (diff < 0) {
+    let left = -diff;
+    [mode].concat(PAY_MODES.filter(function (k) { return k !== mode; })).forEach(function (k) {
+      const take = Math.min(left, Math.max(0, cur[k]));
+      if (take > 0) { entries.push({ montant: -take, mode: k }); left -= take; }
+    });
+  } else if (before > 0 && mainMode(cur) !== 'mixte' && mainMode(cur) !== mode) {
+    entries.push({ montant: -before, mode: mainMode(cur) }, { montant: before, mode: mode });
+  }
+  entries.forEach(function (e) {
+    (v.historique = v.historique || []).push({ montant: e.montant, at: at, mode: e.mode, correction: true });
+  });
+  return entries.length > 0;
+}
+
 function mainMode(modes) {
   const used = PAY_MODES.filter(function (k) { return modes[k] > 0; });
   return used.length === 1 ? used[0] : used.length ? 'mixte' : 'especes';
@@ -319,12 +345,26 @@ function trashRestore(id) {
   const t = db.trash[idx];
   const d = t.data || {};
   const have = function (arr, item) { return arr.some(function (x) { return x.id === item.id; }); };
+  const clientOk = function (cid) { return !cid || (d.client && d.client.id === cid) || db.clients.some(function (c) { return c.id === cid; }); };
+  const carteOk = function (cid) { return !cid || (d.cartes || []).some(function (c) { return c.id === cid; }) || db.cartes.some(function (c) { return c.id === cid; }); };
+  /* Un élément dont le client ou la carte a été supprimé ne peut pas revenir seul. */
+  if ((d.cartes || []).some(function (x) { return !clientOk(x.clientId); }) ||
+      (d.versements || []).some(function (x) { return !carteOk(x.carteId); }) ||
+      (d.operations || []).some(function (x) { return !clientOk(x.clientId) || !carteOk(x.carteId); })) {
+    return { ok: false, reason: 'parent' };
+  }
+  let skipped = 0;
   if (d.client && !have(db.clients, d.client)) db.clients.push(d.client);
   (d.cartes || []).forEach(function (x) { if (!have(db.cartes, x)) db.cartes.push(x); });
-  (d.versements || []).forEach(function (x) { if (!have(db.versements, x)) db.versements.push(x); });
+  (d.versements || []).forEach(function (x) {
+    if (have(db.versements, x)) return;
+    /* Le jour a été pointé à nouveau entre-temps : on garde le pointage actuel (pas de double comptage). */
+    if (db.versements.some(function (v) { return v.carteId === x.carteId && v.date === x.date; })) { skipped += 1; return; }
+    db.versements.push(x);
+  });
   (d.operations || []).forEach(function (x) { if (!have(db.operations, x)) db.operations.push(x); });
   db.trash.splice(idx, 1);
-  return true;
+  return { ok: true, skipped: skipped };
 }
 
 /* ------------------------------------------------------------
@@ -788,6 +828,7 @@ function cardTotals(carte) {
     solde: solde,
     totalPret: totalPret,
     fraisPret: fraisPret,
+    soldeBrut: soldeBrut,
     resteARembourser: Math.max(0, -soldeBrut),
     commission: comm.total,
     commissionLignes: comm.lignes,
@@ -819,8 +860,10 @@ function clientTotals(client) {
   const commission = sum(totals, function (t) { return t.commission; });
   const totalPret = sum(totals, function (t) { return t.totalPret; });
   const fraisPret = sum(totals, function (t) { return t.fraisPret; });
-  const resteARembourser = sum(totals, function (t) { return t.resteARembourser; });
-  const solde = sum(totals, function (t) { return t.solde; });
+  /* Position nette : une avance sur une carte se compense avec l'épargne des autres cartes. */
+  const net = sum(totals, function (t) { return t.soldeBrut; });
+  const resteARembourser = Math.max(0, -net);
+  const solde = Math.max(0, net);
   const actives = cards.filter(function (c) { return c.statut === 'active'; });
   const journalier = sum(actives, function (c) { return Number(c.montantJournalier) || 0; });
   const retard = sum(actives.map(cardTotals), function (t) { return t.retard; });
@@ -917,7 +960,8 @@ function phoneDigits(phone) {
   if (digits.charAt(0) === '+') return digits.slice(1);
   if (digits.slice(0, 2) === '00') return digits.slice(2);
   const ind = String(db.settings.indicatif || '').replace(/\D/g, '');
-  digits = digits.replace(/^0+/, '');
+  /* Au Gabon (241), le 0 fait partie du numéro : +241 077 81 47 66. */
+  if (ind !== '241') digits = digits.replace(/^0+/, '');
   return ind ? ind + digits : digits;
 }
 
@@ -1056,11 +1100,19 @@ function eligibleRetraitClients() {
   });
 }
 
+/* Ce qu'on peut payer sur une carte : son solde, sans dépasser le solde net du client
+   (une avance non remboursée sur une autre carte est d'abord retenue). */
+function retraitDispo(carte) {
+  const client = clientById(carte.clientId);
+  return Math.min(cardTotals(carte).solde, client ? clientTotals(client).solde : 0);
+}
+
 function cardsWithSolde(clientId) {
   return cartesOf(clientId).map(function (c) {
-    return { carte: c, totals: cardTotals(c) };
+    const totals = cardTotals(c);
+    return { carte: c, totals: totals, dispo: retraitDispo(c) };
   }).filter(function (x) {
-    return x.totals.solde > 0;
+    return x.dispo > 0;
   });
 }
 

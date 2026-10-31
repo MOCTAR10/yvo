@@ -18,6 +18,37 @@ let syncBase = null;    // { 'kind:id': { h: hash, r: rev } }
 let syncTimer = 0;
 let syncRunning = false;
 let syncApplying = false;
+let syncDirty = null;   // { 'kind:id': heure de la première modification locale pas encore envoyée }
+let dirtyTimer = 0;
+
+function loadDirty() {
+  if (syncDirty) return;
+  try { syncDirty = JSON.parse(localStorage.getItem('yvo-sync-dirty') || '{}') || {}; } catch (e) { syncDirty = {}; }
+}
+
+function saveDirty() {
+  try { localStorage.setItem('yvo-sync-dirty', JSON.stringify(syncDirty || {})); } catch (e) { /* ignore */ }
+}
+
+/* Note l'heure de chaque modification faite sur ce téléphone : entre deux appareils,
+   c'est la modification la plus récente qui gagne (et non le dernier à se reconnecter). */
+function markDirtySoon() {
+  clearTimeout(dirtyTimer);
+  dirtyTimer = setTimeout(markDirty, 300);
+}
+
+function markDirty() {
+  if (!syncCfg || !db) return;
+  if (!syncBase) { loadSyncBase().then(markDirty, function () { /* ignore */ }); return; }
+  loadDirty();
+  const now = Date.now();
+  let changed = false;
+  computeChanges().changes.forEach(function (c) {
+    const k = c.kind + ':' + c.id;
+    if (!syncDirty[k]) { syncDirty[k] = now; changed = true; }
+  });
+  if (changed) saveDirty();
+}
 
 const syncState = { status: 'off', pending: 0, error: null, lastOkAt: null, conflicts: [] };
 
@@ -108,20 +139,22 @@ function currentRecords() {
 function computeChanges() {
   const cur = currentRecords();
   const now = Date.now();
+  loadDirty();
+  const at = function (key) { return Number(syncDirty[key]) || now; };
   const changes = [];
   const hashes = {};
   Object.keys(cur).forEach(function (key) {
     const b = syncBase[key];
     const h = hashOf(cur[key].data);
     if (!b || b.h !== h) {
-      changes.push({ kind: cur[key].kind, id: cur[key].id, data: cur[key].data, deleted: false, baseRev: b ? b.r : 0, u: now });
+      changes.push({ kind: cur[key].kind, id: cur[key].id, data: cur[key].data, deleted: false, baseRev: b ? b.r : 0, u: at(key) });
       hashes[key] = h;
     }
   });
   Object.keys(syncBase).forEach(function (key) {
     if (!cur[key]) {
       const i = key.indexOf(':');
-      changes.push({ kind: key.slice(0, i), id: key.slice(i + 1), data: null, deleted: true, baseRev: syncBase[key].r, u: now });
+      changes.push({ kind: key.slice(0, i), id: key.slice(i + 1), data: null, deleted: true, baseRev: syncBase[key].r, u: at(key) });
       hashes[key] = 'deleted';
     }
   });
@@ -152,10 +185,16 @@ function syncApi(path, body, token, timeoutMs) {
   if (tk) headers.Authorization = 'Bearer ' + tk;
   return fetch(base + path, { method: body === undefined ? 'GET' : 'POST', headers: headers, body: body === undefined ? undefined : JSON.stringify(body), signal: ctrl ? ctrl.signal : undefined })
     .then(function (r) {
-      return r.json().catch(function () { return {}; }).then(function (j) {
+      return r.json().catch(function () { return null; }).then(function (j) {
         if (!r.ok) {
-          const err = new Error(j.error || 'Erreur ' + r.status);
+          const err = new Error((j && j.error) || 'Erreur ' + r.status);
           err.status = r.status;
+          throw err;
+        }
+        /* page de portail Wi-Fi, proxy mal réglé… : ce n'est pas notre serveur */
+        if (!j || typeof j !== 'object') {
+          const err = new Error('Le serveur ne répond pas correctement.');
+          err.status = 502;
           throw err;
         }
         return j;
@@ -188,7 +227,7 @@ function applyServerChange(ch, force) {
     const b = syncBase[key];
     if (!force && b && b.h !== cur) return false;
     db.settings.company = Object.assign({}, db.settings.company, d.company || {});
-    ['devise', 'indicatif', 'soldeInitial', 'seuilRisque', 'commission'].forEach(function (f) { if (d[f] != null) db.settings[f] = d[f]; });
+    ['devise', 'indicatif', 'soldeInitial', 'seuilRisque', 'commission', 'cardTypes'].forEach(function (f) { if (d[f] != null) db.settings[f] = d[f]; });
     syncBase[key] = { h: hashOf(syncedSettings()), r: ch.rev };
     return true;
   }
@@ -242,7 +281,7 @@ function syncNow(manual) {
   if (!syncCfg || !db) return Promise.resolve();
   /* une synchronisation tourne déjà : on relance juste après, rien n'est ignoré */
   if (syncRunning) return syncPromise.then(function () { return syncNow(manual); });
-  if (state.locked && !manual) return Promise.resolve();
+  if (typeof tabInactive !== 'undefined' && tabInactive) return Promise.resolve();
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     syncState.status = 'offline';
     updateSyncPill();
@@ -265,6 +304,7 @@ function syncNow(manual) {
             const key = a.kind + ':' + a.id;
             if (a.serverWon) serverWon[key] = true;
             const h = diff.hashes[key];
+            delete syncDirty[key];
             if (h === 'deleted') delete syncBase[key];
             else if (h) syncBase[key] = { h: h, r: a.rev };
           });
@@ -285,6 +325,7 @@ function syncNow(manual) {
         } finally { syncApplying = false; }
         syncCfg.lastSeq = resp.seq;
         saveSyncCfg();
+        saveDirty();
         return saveSyncBase().then(function () {
           const remaining = diff.changes.length > batch.length || resp.more;
           if (remaining && round < 60) return run(round + 1);

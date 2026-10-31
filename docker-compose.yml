@@ -26,11 +26,14 @@ services:
       DATABASE_URL: postgres://yvo:${POSTGRES_PASSWORD:-yvo}@db:5432/yvo
       YVO_PASSWORD: ${YVO_PASSWORD:-}
       PORT: "8080"
+      # le proxy inverse HTTPS (Caddy / Nginx) sur le VPS ajoute X-Forwarded-For
+      TRUST_PROXY: "1"
     depends_on:
       db:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      # seulement en local : le public passe par le proxy inverse HTTPS
+      - "127.0.0.1:8080:8080"
 
 volumes:
   yvo-pgdata:

@@ -85,13 +85,15 @@ function persistDB() {
   db.savedAt = Date.now();
   db.revision = (Number(db.revision) || 0) + 1;
   let json;
+  /* l'application est utilisée dans une autre fenêtre : celle-ci n'écrit plus rien */
+  if (typeof tabInactive !== 'undefined' && tabInactive) return true;
   try { json = JSON.stringify(db); } catch (err) { storageInfo.error = 'Sérialisation impossible'; return false; }
 
   let lsOk = true;
   try { localStorage.setItem(DB_KEY, json); } catch (err) { lsOk = false; }
 
   storageInfo.lastSaveAt = db.savedAt;
-  if (typeof scheduleSync === 'function' && !syncApplying) scheduleSync();
+  if (typeof scheduleSync === 'function' && !syncApplying) { markDirtySoon(); scheduleSync(); }
   idbDirty = true;
   flushIdb();
 
@@ -308,20 +310,21 @@ function csvClients() {
 }
 
 function csvVersements() {
-  const rows = [['Date', 'Client', 'Quartier', 'Carte', 'Montant', 'Statut', 'Note']];
+  const rows = [['Date', 'Client', 'Quartier', 'Carte', 'Montant', 'Statut', 'Espèces', 'Airtel Money', 'Moov Money', 'Note']];
   db.versements.slice().sort(function (a, b) { return a.date.localeCompare(b.date); }).forEach(function (v) {
     const c = clientById(v.clientId);
     const k = carteById(v.carteId);
-    rows.push([v.date, c ? c.nom : '', c ? c.quartier : '', k ? k.label : '', v.montant, STATUT_LABELS[v.statut] || v.statut, v.note || '']);
+    const m = versementModes(v);
+    rows.push([v.date, c ? c.nom : '', c ? c.quartier : '', k ? k.label : '', v.montant, STATUT_LABELS[v.statut] || v.statut, m.especes, m.airtel, m.moov, v.note || '']);
   });
   return toCSV(rows);
 }
 
 function csvOperations() {
-  const rows = [['Date', 'Type', 'Catégorie', 'Libellé', 'Client', 'Montant', 'Reçu', 'Note']];
+  const rows = [['Date', 'Type', 'Catégorie', 'Libellé', 'Client', 'Montant', 'Mode', 'Reçu', 'Note']];
   db.operations.slice().sort(function (a, b) { return a.date.localeCompare(b.date); }).forEach(function (o) {
     const c = clientById(o.clientId);
-    rows.push([o.date, o.type === 'entree' ? 'Entrée' : 'Sortie', CAT_LABELS[o.categorie] || o.categorie, o.libelle, c ? c.nom : '', o.montant, o.recuNumero || '', o.note || '']);
+    rows.push([o.date, o.type === 'entree' ? 'Entrée' : 'Sortie', CAT_LABELS[o.categorie] || o.categorie, o.libelle, c ? c.nom : '', o.montant, o.mode || '', o.recuNumero || '', o.note || '']);
   });
   return toCSV(rows);
 }

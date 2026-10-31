@@ -101,7 +101,7 @@ function retraitCardOptions(clientId, selectedId) {
   return cards.map(function (x) {
     const isSel = selectedId ? x.carte.id === selectedId : false;
     return '<option value="' + esc(x.carte.id) + '"' + (isSel ? ' selected' : '') + '>' +
-      esc(x.carte.label) + ' · solde ' + esc(money(x.totals.solde)) + '</option>';
+      esc(x.carte.label) + ' · solde ' + esc(money(x.dispo)) + '</option>';
   }).join('');
 }
 
@@ -124,7 +124,7 @@ function openRetraitModal(preselect) {
     return;
   }
   let cardChoice = cards.find(function (x) { return x.carte.id === pre.carteId; }) || cards[0];
-  const solde = cardChoice ? cardChoice.totals.solde : 0;
+  const solde = cardChoice ? cardChoice.dispo : 0;
 
   openModal({
     title: 'Payer un client',
@@ -148,7 +148,7 @@ function openRetraitModal(preselect) {
           '<label class="field"><span>Montant payé *</span><div class="input-suffix"><input id="retrait-montant" name="montant" type="number" min="1" step="1" required value="' + solde + '"><span>' + esc(db.settings.devise) + '</span></div></label>' +
           '<label class="field"><span>Date du paiement</span><input name="date" type="date" required value="' + todayISO() + '"></label>' +
           '<label class="field"><span>Mode de paiement</span><select name="mode">' +
-            ['Espèces', 'Airtel Money', 'Moov Money', 'Virement', 'Chèque', 'Autre'].map(function (m) {
+            ['Espèces', 'Airtel Money', 'Moov Money'].map(function (m) {
               return '<option value="' + esc(m) + '">' + esc(m) + '</option>';
             }).join('') +
           '</select></label>' +
@@ -243,7 +243,7 @@ function openEraseModal() {
       '<form id="form-erase" data-form="erase-data" autocomplete="off">' +
         '<div class="confirm-box"><span class="confirm-ic red">' + icon('alert', 22) + '</span>' +
           '<div><p>Supprimer <strong>tous les clients, cartes, versements et opérations</strong> de cet appareil ? Cette action ne peut pas être annulée.</p>' +
-          '<p class="muted">Pensez à exporter une sauvegarde avant de continuer.</p></div></div>' +
+          '</div></div>' +
         '<label class="field"><span>Tapez <strong>EFFACER</strong> pour confirmer</span><input name="confirm" required autocomplete="off" placeholder="EFFACER"></label>' +
       '</form>',
     footer:

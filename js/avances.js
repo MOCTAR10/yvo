@@ -106,6 +106,7 @@ function savePret(form) {
   const fraisType = String(f.get('fraisType') || 'fixe');
   const fraisValeur = Number(f.get('fraisValeur')) || 0;
   const frais = pretFrais(montant, fraisType, fraisValeur);
+  if (fraisValeur < 0 || (fraisType === 'pct' && fraisValeur > 100) || frais > montant) return toast('Frais trop élevés : ils ne peuvent pas dépasser le montant de l’avance.', 'error');
   const mode = PAY_MODES.indexOf(String(f.get('mode'))) >= 0 ? String(f.get('mode')) : 'especes';
   const p = pretPreview(carte, montant, frais);
   const now = new Date().toISOString();

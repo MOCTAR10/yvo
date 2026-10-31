@@ -41,7 +41,8 @@ function createReceipt(clientId, date, lignes, mode, ref) {
     devise: db.settings.devise,
     entreprise: company.nom || '',
     collecteur: company.responsable || company.nom || '',
-    appareil: (typeof syncCfg !== 'undefined' && syncCfg) ? syncCfg.deviceName : ''
+    appareil: (typeof syncCfg !== 'undefined' && syncCfg) ? syncCfg.deviceName : '',
+    cv: 2
   };
   rec.code = ReceiptCode.compute(rec);
   db.recus.push(rec);

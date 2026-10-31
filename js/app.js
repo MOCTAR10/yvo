@@ -22,7 +22,29 @@ const SNAP_REASONS = {
    Démarrage
    ------------------------------------------------------------ */
 
+/* Une seule fenêtre à la fois : deux onglets ouverts s'écraseraient leurs données. */
+let tabInactive = false;
+
+function initSingleTab() {
+  if (typeof BroadcastChannel === 'undefined') return;
+  const me = Math.random().toString(36).slice(2);
+  const ch = new BroadcastChannel('yvo-epargne');
+  ch.onmessage = function (e) {
+    if (!e.data || e.data.t !== 'open' || e.data.id === me || tabInactive) return;
+    tabInactive = true;
+    const box = document.createElement('div');
+    box.className = 'other-tab';
+    box.innerHTML = '<div class="other-tab-card"><strong>YVO Épargne est ouvert dans une autre fenêtre</strong>' +
+      '<span>Pour ne rien perdre, on travaille dans une seule fenêtre à la fois.</span>' +
+      '<button type="button" class="btn primary">Utiliser cette fenêtre</button></div>';
+    box.querySelector('button').addEventListener('click', function () { location.reload(); });
+    document.body.appendChild(box);
+  };
+  ch.postMessage({ t: 'open', id: me });
+}
+
 function boot() {
+  initSingleTab();
   buildNav();
   bindEvents();
   registerSW();
@@ -328,6 +350,11 @@ function loginWithPassword(password) {
   };
   /* réseau faible : au-delà de 8 s on vérifie sur le téléphone (si Yvo s'y est déjà connecté) */
   return syncApi('/api/login', { password: password, device: device }, 'none', 8000).then(function (r) {
+    if (!r || r.ok !== true || !/^[a-f0-9]{64}$/.test(String(r.token || ''))) {
+      const err = new Error('Réponse inattendue du serveur.');
+      err.status = 502;
+      throw err;
+    }
     const prev = syncCfg;
     syncCfg = {
       server: '', token: r.token, account: r.account, deviceId: device.id, deviceName: device.name,
@@ -344,7 +371,7 @@ function loginWithPassword(password) {
     if (err && err.status === 429) return 'limit';
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(OFFLINE_KEY) || 'null'); } catch (e) { /* ignore */ }
-    if (!saved || !saved.salt) return 'first-online';
+    if (!saved || !saved.salt) return err && err.status >= 500 ? 'server-down' : 'first-online';
     return sha256(saved.salt + password) === saved.hash ? 'ok' : 'bad';
   });
 }
@@ -570,8 +597,23 @@ function handleAction(action, el, e) {
       break;
 
     case 'toggle-carte':
+    case 'confirm-toggle-carte':
       if (carteId) {
         const carte = carteById(carteId);
+        const reste = carte && carte.statut === 'active' ? cardTotals(carte).resteARembourser : 0;
+        if (carte && reste > 0 && action === 'toggle-carte') {
+          openConfirm({
+            title: 'Clôturer la carte ?',
+            tone: 'red',
+            icon: 'alert',
+            message: 'Ce client doit encore <strong>' + esc(money(reste)) + '</strong> sur une avance d’argent. Une fois la carte clôturée, ses cotisations ne rembourseront plus cette avance.',
+            label: 'Clôturer quand même',
+            action: 'confirm-toggle-carte',
+            data: 'data-carte="' + esc(carte.id) + '"'
+          });
+          break;
+        }
+        if (action === 'confirm-toggle-carte') closeModal();
         if (carte) {
           const reopening = carte.statut !== 'active';
           carte.statut = reopening ? 'active' : 'cloturee';
@@ -649,6 +691,7 @@ function handleAction(action, el, e) {
 
     case 'pointage-shift':
       state.pointageDate = addDays(state.pointageDate || todayISO(), Number(el.getAttribute('data-delta')) || 0);
+      if (state.pointageDate > todayISO()) state.pointageDate = todayISO();
       rerender();
       break;
 
@@ -704,7 +747,10 @@ function handleAction(action, el, e) {
 
     case 'cal-today':
       if (carteId) {
-        state.cal[carteId] = monthKeyOf(todayISO());
+        const k = carteById(carteId);
+        const t = todayISO();
+        /* Carte terminée : on revient à son dernier mois (sinon tout serait « hors carte »). */
+        state.cal[carteId] = monthKeyOf(k && t > k.dateFin ? k.dateFin : k && t < k.dateDebut ? k.dateDebut : t);
         rerender();
       }
       break;
@@ -840,11 +886,14 @@ function handleAction(action, el, e) {
     case 'trash-restore': {
       const id = el.getAttribute('data-id');
       const item = db.trash.find(function (t) { return t.id === id; });
-      if (item && trashRestore(id)) {
+      const res = item ? trashRestore(id) : null;
+      if (res && !res.ok) {
+        toast('Impossible : son client ou sa carte est supprimé. Restaurez d’abord le client ou la carte.', 'error');
+      } else if (res) {
         logActivity('systeme', 'Restauré depuis la corbeille : ' + item.label);
         saveDB();
         rerender();
-        toast('Élément restauré.', 'success');
+        toast(res.skipped ? 'Élément restauré. ' + res.skipped + ' jour(s) déjà pointé(s) à nouveau : le pointage actuel est gardé.' : 'Élément restauré.', res.skipped ? 'info' : 'success');
       }
       break;
     }
@@ -1031,6 +1080,7 @@ function handleForm(type, form, submitter) {
       let msg = 'Mot de passe incorrect.';
       if (res === 'limit') msg = 'Trop d’essais. Patientez quelques minutes.';
       else if (res === 'first-online') msg = 'Première connexion sur ce téléphone : il faut Internet.';
+      else if (res === 'server-down') msg = 'Le serveur ne répond pas pour le moment. Réessayez dans quelques minutes.';
       else if (loginFailed() >= 5) msg = 'Trop d’essais. Patientez 30 s.';
       if (error) error.textContent = msg;
       const card = document.querySelector('.login-card');
@@ -1192,12 +1242,15 @@ function handleForm(type, form, submitter) {
     const now = new Date().toISOString();
     if (existing) {
       const before = Number(existing.montant) || 0;
+      const modeChanged = correctVersementModes(existing, montant, mode, now);
       existing.montant = montant;
       existing.statut = statutFor(montant, carte.montantJournalier);
       existing.note = note;
       existing.updatedAt = now;
+      if (montant === before && modeChanged) {
+        logActivity('versement', 'Mode de paiement corrigé le ' + fmtDate(date, 'short') + ' : ' + money(montant, true) + ' en ' + PAY_MODE_LABELS[mode] + ' (' + carte.label + ')', { clientId: carte.clientId, carteId: carteId, montant: 0 });
+      }
       if (montant !== before) {
-        (existing.historique = existing.historique || []).push({ montant: montant - before, at: now, mode: mode, correction: true });
         logActivity('versement', 'Pointage corrigé le ' + fmtDate(date, 'short') + ' : ' + money(before, true) + ' → ' + money(montant, true) + ' en ' + PAY_MODE_LABELS[mode] + ' (' + carte.label + ')', { clientId: carte.clientId, carteId: carteId, montant: Math.max(0, montant - before) });
       }
     } else {
@@ -1228,9 +1281,14 @@ function handleForm(type, form, submitter) {
     if (!client || !carte || carte.clientId !== clientId) return toast('Sélection invalide.', 'error');
     const tot = cardTotals(carte);
     if (montant <= 0) return toast('Le montant doit être supérieur à 0.', 'error');
-    if (montant > tot.solde) return toast('Le montant dépasse le solde dû de ' + money(tot.solde) + '.', 'error');
+    const dispo = retraitDispo(carte);
+    if (montant > dispo) {
+      return toast(dispo < tot.solde
+        ? 'Une avance d’argent n’est pas encore remboursée sur une autre carte (' + money(tot.solde - dispo) + ' retenus) : vous pouvez payer au plus ' + money(dispo) + '.'
+        : 'Le montant dépasse le solde dû de ' + money(dispo) + '.', 'error');
+    }
     if (montant > cashBalance()) return toast('Caisse insuffisante : il y a ' + money(cashBalance()) + ' en caisse. Ajoutez une entrée de caisse avant ce paiement.', 'error');
-    if (cloturer && montant < tot.solde) return toast('Paiement partiel : décochez « Clôturer la carte ».', 'error');
+    if (cloturer && montant < dispo) return toast('Paiement partiel : décochez « Clôturer la carte ».', 'error');
     const soldeApres = Math.max(0, tot.solde - montant);
     const recu = nextReceiptNumber();
     const op = {
@@ -1494,7 +1552,7 @@ function syncRetraitCard(setAmount) {
   if (!clientSelect || !cardSelect || !amountInput) return;
   const cards = cardsWithSolde(clientSelect.value);
   const choice = cards.find(function (x) { return x.carte.id === cardSelect.value; }) || cards[0];
-  const solde = choice ? choice.totals.solde : 0;
+  const solde = choice ? choice.dispo : 0;
   if (soldeBox) {
     soldeBox.innerHTML = icon('wallet', 17) + '<div><strong>Solde dû : ' + esc(money(solde)) + '</strong><span id="retrait-solde-sub">' +
       (choice ? esc(choice.carte.label) + ' · ' + numberFR(choice.totals.totalVerse) + ' cotisés' : '') + ' · caisse ' + esc(money(cashBalance())) + '</span></div>';

@@ -298,6 +298,14 @@ function recentPaymentsOf(client, limit) {
   const list = [];
   db.versements.forEach(function (v) {
     if (!cards[v.carteId] || !(Number(v.montant) > 0)) return;
+    /* Jour corrigé : on montre ce qui reste réellement, par mode. */
+    if ((v.historique || []).some(function (h) { return h.correction || Number(h.montant) < 0; })) {
+      const net = versementModes(v);
+      PAY_MODES.forEach(function (k) {
+        if (net[k] > 0) list.push({ carte: cards[v.carteId], date: v.date, at: v.updatedAt || v.createdAt || '', montant: net[k], mode: k, ref: '' });
+      });
+      return;
+    }
     let seen = 0;
     (v.historique || []).forEach(function (h) {
       const m = Number(h.montant) || 0;
@@ -339,7 +347,7 @@ function cardPanelHTML(carte, idx) {
   const canPay = tot.solde > 0;
   const history = versementsOf(carte.id).slice().sort(function (a, b) { return b.date.localeCompare(a.date); });
   const retraits = db.operations.filter(function (o) {
-    return o.type === 'sortie' && o.categorie === 'retrait' && o.carteId === carte.id;
+    return o.type === 'sortie' && (o.categorie === 'retrait' || o.categorie === 'pret') && o.carteId === carte.id;
   }).sort(function (a, b) { return b.date.localeCompare(a.date); });
 
   const couleur = carte.typeCouleur != null ? carte.typeCouleur : (idx || 0) % 4;
@@ -409,7 +417,7 @@ function cardPanelHTML(carte, idx) {
       ? '<details class="card-history"><summary><span>' + icon('receipt', 15) + ' Paiements & reçus</span><span>' + retraits.length + ' reçu' + (retraits.length > 1 ? 's' : '') + ' ' + icon('chevron-right', 14) + '</span></summary>' +
         '<div class="table-wrap"><table class="table"><thead><tr><th>Date</th><th>Montant</th><th>Mode</th><th>N° reçu</th><th></th></tr></thead><tbody>' +
         retraits.map(function (o) {
-          return '<tr><td>' + esc(fmtDate(o.date, 'medium')) + '</td><td class="num">' + esc(money(o.montant)) + '</td><td>' + esc(o.mode || '—') + '</td><td class="mono">' + esc(o.recuNumero || '—') + '</td>' +
+          return '<tr><td>' + esc(fmtDate(o.date, 'medium')) + '</td><td class="num">' + (o.categorie === 'pret' ? 'Avance · ' : '') + esc(money(o.montant)) + '</td><td>' + esc(o.mode || '—') + '</td><td class="mono">' + esc(o.recuNumero || '—') + '</td>' +
             '<td class="right"><button type="button" class="btn sm ghost" data-action="open-receipt" data-op="' + esc(o.id) + '">' + icon('printer', 14) + ' Reçu</button></td></tr>';
         }).join('') + '</tbody></table></div></details>'
       : '') +
@@ -426,7 +434,7 @@ function viewClient(id) {
   const tot = clientTotals(client);
   const cards = cartesOf(client.id).sort(function (a, b) { return a.dateDebut.localeCompare(b.dateDebut); });
   const retraits = db.operations.filter(function (o) {
-    return o.type === 'sortie' && o.categorie === 'retrait' && o.clientId === client.id;
+    return o.type === 'sortie' && (o.categorie === 'retrait' || o.categorie === 'pret') && o.clientId === client.id;
   }).sort(function (a, b) { return b.date.localeCompare(a.date); });
   const notes = client.notes ? '<p class="notes-text">' + esc(client.notes).replace(/\n/g, '<br>') + '</p>' : '<p class="muted">Aucune note.</p>';
   const risk = clientRisk(client);
@@ -516,12 +524,12 @@ function viewClient(id) {
     recentPaymentsHTML(client, tot.nbCartes > 1) +
     infoHTML +
     (retraits.length
-      ? '<section class="panel"><div class="panel-head"><div><h2>Retraits & reçus</h2><p class="panel-sub">Historique des paiements effectués au client.</p></div></div>' +
+      ? '<section class="panel"><div class="panel-head"><div><h2>Paiements, avances & reçus</h2><p class="panel-sub">L’argent donné au client, avec son reçu.</p></div></div>' +
         '<div class="table-wrap"><table class="table"><thead><tr><th>Date</th><th>Carte</th><th>Montant</th><th>Mode</th><th>Reçu</th><th></th></tr></thead><tbody>' +
         retraits.map(function (o) {
           const carte = carteById(o.carteId);
           const label = (o.snapshot && o.snapshot.carteLabel) || (carte ? carte.label : '—');
-          return '<tr><td>' + esc(fmtDate(o.date, 'medium')) + '</td><td>' + esc(label) + '</td><td class="num">' + esc(money(o.montant)) + '</td><td>' + esc(o.mode || '—') + '</td><td class="mono">' + esc(o.recuNumero || '—') + '</td>' +
+          return '<tr><td>' + esc(fmtDate(o.date, 'medium')) + '</td><td>' + (o.categorie === 'pret' ? 'Avance · ' : '') + esc(label) + '</td><td class="num">' + esc(money(o.montant)) + '</td><td>' + esc(o.mode || '—') + '</td><td class="mono">' + esc(o.recuNumero || '—') + '</td>' +
             '<td class="right"><button type="button" class="btn sm ghost" data-action="open-receipt" data-op="' + esc(o.id) + '">' + icon('printer', 14) + ' Reçu</button></td></tr>';
         }).join('') + '</tbody></table></div></section>'
       : '') +

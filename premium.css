@@ -963,3 +963,9 @@ details.dash-more { margin-top: 16px; }
   .cal-check { width: 13px; height: 13px; font-size: 9px; }
   .fc-card-body { margin: -16px 6px 0; padding: 26px 10px 4px; }
 }
+
+/* Application ouverte dans une autre fenêtre */
+.other-tab { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; padding: 24px; background: rgba(6, 42, 31, .92); }
+.other-tab-card { max-width: 380px; display: flex; flex-direction: column; gap: 12px; padding: 26px; border-radius: 22px; background: var(--surface, #fffdf8); text-align: center; box-shadow: 0 24px 60px -20px rgba(0, 0, 0, .6); }
+.other-tab-card strong { font-size: 19px; }
+.other-tab-card span { color: var(--muted, #5b6660); }

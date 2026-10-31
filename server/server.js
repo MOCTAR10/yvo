@@ -60,6 +60,17 @@ const esc = function (s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
 };
 
+/* Dates lisibles sur la page publique du reçu (heure du Gabon). */
+function frDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  return m ? m[3] + '/' + m[2] + '/' + m[1] : String(iso || '');
+}
+function frDateTime(iso) {
+  const d = new Date(iso);
+  if (!iso || isNaN(d)) return '';
+  return d.toLocaleString('fr-FR', { timeZone: 'Africa/Libreville', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
 function send(res, status, body, headers) {
   const isStr = typeof body === 'string' || Buffer.isBuffer(body);
   res.writeHead(status, Object.assign({
@@ -89,6 +100,7 @@ function readBody(req) {
 }
 
 /* limitation des tentatives de connexion (par adresse IP) */
+const TRUST_PROXY = /^(1|true|yes)$/i.test(String(process.env.TRUST_PROXY || ''));
 const attempts = new Map();
 function tooMany(key) {
   const now = Date.now();
@@ -97,6 +109,9 @@ function tooMany(key) {
   return list.length >= 10;
 }
 function noteAttempt(key) { const l = attempts.get(key) || []; l.push(Date.now()); attempts.set(key, l); }
+function forgetAttempt(key) { const l = attempts.get(key); if (l) { l.pop(); if (!l.length) attempts.delete(key); } }
+// ménage régulier : la table des essais ne grossit pas sans fin
+setInterval(function () { attempts.forEach(function (l, k) { tooMany(k); }); }, 10 * 60 * 1000).unref();
 
 async function auth(req) {
   const h = String(req.headers.authorization || '');
@@ -136,7 +151,7 @@ async function applyChanges(session, changes) {
     for (const ch of changes) {
       if (!ch || KINDS.indexOf(ch.kind) < 0 || !ch.id || typeof ch.id !== 'string') continue;
       const id = ch.id.slice(0, 80);
-      const u = Math.min(Number(ch.u) || nowMs, nowMs + 5 * 60 * 1000);
+      const u = Math.max(0, Math.min(Math.trunc(Number(ch.u)) || nowMs, nowMs + 5 * 60 * 1000));
       const deleted = !!ch.deleted;
       const dataStr = JSON.stringify(ch.data == null ? null : ch.data);
       const cur = (await c.query('SELECT * FROM records WHERE account_id = $1 AND kind = $2 AND id = $3', [acc, ch.kind, id])).rows[0];
@@ -157,7 +172,8 @@ async function applyChanges(session, changes) {
 
       if (cur && cur.rev !== (Number(ch.baseRev) || 0)) {
         // l'enregistrement a changé ailleurs depuis la dernière synchronisation de cet appareil
-        const mineWins = u >= cur.u;
+        // un appareil qui n'a jamais reçu cet enregistrement (nouveau téléphone) ne l'écrase pas
+        const mineWins = (Number(ch.baseRev) || 0) > 0 && u >= Number(cur.u);
         await event(ch.kind, id, 'conflict', dataStr,
           'Conflit : version de ' + dev[1] + ' ' + (mineWins ? 'retenue (plus récente)' : 'non retenue (plus ancienne)') + '. Les deux versions sont conservées dans l’historique.');
         conflicts.push({ kind: ch.kind, id: id, winner: mineWins ? 'device' : 'server', at: nowIso() });
@@ -195,8 +211,9 @@ async function head(accountId) {
 }
 
 async function handleSync(session, body) {
+  body = body && typeof body === 'object' ? body : {};
   const changes = Array.isArray(body.changes) ? body.changes.slice(0, BATCH) : [];
-  const since = Number(body.since) || 0;
+  const since = Math.max(0, Math.min(Math.trunc(Number(body.since)) || 0, Number.MAX_SAFE_INTEGER));
   const res = await applyChanges(session, changes);
   const rows = (await pool.query('SELECT kind, id, data, deleted, rev, seq FROM records WHERE account_id = $1 AND seq > $2 ORDER BY seq LIMIT $3',
     [session.account_id, since, BATCH])).rows;
@@ -210,7 +227,8 @@ async function handleSync(session, body) {
   });
   res.forced.forEach(function (f) { out.push(f); });
   const more = rows.length >= BATCH;
-  const seq = more ? rows[rows.length - 1].seq : await head(session.account_id);
+  // le curseur ne dépasse jamais les lignes réellement lues (sinon une écriture concurrente serait sautée)
+  const seq = rows.length ? Number(rows[rows.length - 1].seq) : since;
   return { ok: true, seq: seq, more: more, applied: res.applied, conflicts: res.conflicts, changes: out, serverTime: Date.now() };
 }
 
@@ -235,11 +253,11 @@ function receiptPage(rec, verified) {
     '<tr><td>Total cotisé à ce jour</td><td class="r">' + esc(Number(rec.cumul).toLocaleString('fr-FR')) + '</td></tr>' +
     '<tr><td>Retard restant</td><td class="r">' + esc(Number(rec.retard) > 0 ? Number(rec.retard).toLocaleString('fr-FR') : 'À jour') + '</td></tr>' +
     '<tr><td>Payé par</td><td class="r">' + (rec.mode === 'airtel' || rec.mode === 'moov' ? '<img src="/img/' + rec.mode + '-money.png" alt="" height="22" style="vertical-align:middle;border-radius:4px;margin-right:6px">' : '') + esc(({ airtel: 'Airtel Money', moov: 'Moov Money' })[rec.mode] || 'Espèces') + (rec.ref ? ' · réf. ' + esc(rec.ref) : '') + '</td></tr>' +
-    '<tr><td>Date</td><td class="r">' + esc(rec.date) + '</td></tr><tr><td>N° du reçu</td><td class="r">' + esc(rec.numero) + '</td></tr></table>' +
+    '<tr><td>Date</td><td class="r">' + esc(frDate(rec.date)) + '</td></tr><tr><td>N° du reçu</td><td class="r">' + esc(rec.numero) + '</td></tr></table>' +
     '<div class="v ' + (verified ? 'ok' : 'bad') + '">' + (verified
       ? '✔ <b>Reçu authentique.</b> Il est enregistré sur le serveur de ' + esc(rec.entreprise || 'l’entreprise') + ' et son contenu n’a pas été modifié. Code de contrôle : <code>' + esc(rec.code) + '</code>'
       : '✖ <b>Attention :</b> le contenu de ce reçu ne correspond pas à son code de contrôle.') + '</div>' +
-    '<div class="f">Établi par ' + esc(rec.collecteur || '') + ' · ' + esc(rec.at || '') + '</div></div></body></html>';
+    '<div class="f">Établi par ' + esc(rec.collecteur || '') + ' · ' + esc(frDateTime(rec.at)) + '</div></div></body></html>';
 }
 
 /* ---------- fichiers statiques ---------- */
@@ -281,7 +299,10 @@ async function route(req, res) {
   const url = new URL(req.url, 'http://x');
   const p = url.pathname;
   // derrière un proxy inverse, la DERNIÈRE adresse de X-Forwarded-For est celle ajoutée par le proxy (non falsifiable)
-  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',').pop().trim();
+  // X-Forwarded-For n'est cru que derrière un proxy inverse déclaré (TRUST_PROXY=1) : sa DERNIÈRE adresse est celle ajoutée par le proxy
+  const ip = TRUST_PROXY && req.headers['x-forwarded-for']
+    ? String(req.headers['x-forwarded-for']).split(',').pop().trim()
+    : String(req.socket.remoteAddress || '');
 
   if (p === '/api/health') {
     try {
@@ -297,12 +318,15 @@ async function route(req, res) {
   if (p.indexOf('/api/') === 0 || p.indexOf('/r/') === 0) await ready;
 
   if (p === '/api/login' && req.method === 'POST') {
-    const b = await readBody(req);
+    let b = await readBody(req);
+    b = b && typeof b === 'object' ? b : {};
     const key = ip;
     if (tooMany(key)) return send(res, 429, { error: 'Trop de tentatives. Réessayez dans quelques minutes.' });
+    noteAttempt(key); // compté AVANT le calcul (lent) : des essais en parallèle ne passent pas entre les mailles
     const acc = (await pool.query('SELECT * FROM accounts WHERE name = $1', [ACCOUNT_NAME])).rows[0];
     const ok = !!acc && crypto.timingSafeEqual(Buffer.from(await hashPassword(String(b.password || ''), acc.salt), 'hex'), Buffer.from(acc.hash, 'hex'));
-    if (!ok) { noteAttempt(key); return send(res, 401, { error: 'Mot de passe incorrect.' }); }
+    if (!ok) return send(res, 401, { error: 'Mot de passe incorrect.' });
+    forgetAttempt(key);
     const device = b.device && typeof b.device === 'object' ? b.device : {};
     return send(res, 200, { ok: true, token: await newSession(acc.id, device), account: ACCOUNT_NAME });
   }
@@ -344,7 +368,7 @@ async function route(req, res) {
       if (kind && id) {
         return send(res, 200, { ok: true, events: (await pool.query('SELECT seq, at, device_name, kind, rec_id, op, data, note FROM events WHERE account_id = $1 AND kind = $2 AND rec_id = $3 ORDER BY seq DESC LIMIT 100', [acc, kind, id])).rows });
       }
-      const limit = Math.min(Number(url.searchParams.get('limit')) || 100, 500);
+      const limit = Math.max(1, Math.min(Math.trunc(Number(url.searchParams.get('limit'))) || 100, 500));
       return send(res, 200, { ok: true, events: (await pool.query('SELECT seq, at, device_name, kind, rec_id, op, note FROM events WHERE account_id = $1 ORDER BY seq DESC LIMIT $2', [acc, limit])).rows });
     }
     if (p === '/api/export') {

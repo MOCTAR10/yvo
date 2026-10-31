@@ -1,7 +1,7 @@
 /* YVO Épargne — service worker (hors ligne) */
 'use strict';
 
-const CACHE = 'yvo-epargne-v3.0.2';
+const CACHE = 'yvo-epargne-v3.1.0';
 const ASSETS = [
   './index.html',
   './styles.css',
@@ -70,6 +70,8 @@ self.addEventListener('fetch', function (event) {
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request).then(function (response) {
+        /* serveur ou proxy en panne (502, 503…) : on ouvre quand même l'application gardée sur le téléphone */
+        if (!response.ok) return caches.match('./index.html').then(function (cached) { return cached || response; });
         const copy = response.clone();
         caches.open(CACHE).then(function (cache) { cache.put(request, copy); });
         return response;

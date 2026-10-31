@@ -31,7 +31,7 @@ module.exports = defineConfig({
     command: 'node tests/reset-db.js && node server/server.js',
     url: 'http://localhost:' + PORT + '/api/health',
     reuseExistingServer: false,
-    env: { PORT: String(PORT), DATABASE_URL: DATABASE_URL, YVO_PASSWORD: process.env.YVO_PASSWORD, NODE_ENV: 'test' },
+    env: { PORT: String(PORT), DATABASE_URL: DATABASE_URL, YVO_PASSWORD: process.env.YVO_PASSWORD, NODE_ENV: 'test', TRUST_PROXY: '1' },
     timeout: 30000
   }
 });

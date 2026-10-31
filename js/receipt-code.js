@@ -26,11 +26,13 @@
   }
 
   function canonical(r) {
-    return [
+    const base = [
       r.numero, r.date, r.at, r.clientNom, r.total,
       (r.lignes || []).map(function (l) { return l.carte + ':' + l.montant; }).join(','),
       r.cumul, r.retard, r.entreprise
     ].join('|');
+    /* Reçus version 2 : le mode de paiement est aussi protégé (les anciens gardent leur code). */
+    return r.cv === 2 ? base + '|' + (r.mode || '') + '|' + (r.ref || '') : base;
   }
 
   function compute(r) {

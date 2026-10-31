@@ -44,6 +44,7 @@ function payModeTag(modes) {
 }
 
 function openPaySheet(clientId, date, focusCarteId) {
+  if (date && date > todayISO()) { toast('Ce jour n’est pas encore arrivé : on pointe le jour même.', 'info'); return; }
   const client = clientById(clientId);
   if (!client) return;
   const cards = dueCards(date).filter(function (c) { return c.clientId === clientId; });
@@ -148,6 +149,7 @@ function openPaidSheet(clientId, date, amount, rec, mode) {
 function openDayModal(carteId, date) {
   const carte = carteById(carteId);
   if (!carte) return;
+  if (date > todayISO()) { toast('Ce jour n’est pas encore arrivé : on pointe le jour même.', 'info'); return; }
   const client = clientById(carte.clientId);
   const v = versementFor(carteId, date);
   const daily = Number(carte.montantJournalier) || 0;

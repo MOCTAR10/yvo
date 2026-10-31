@@ -55,7 +55,7 @@ function viewMulti() {
       '</div>' +
     '</div>' +
     '<div class="callout info">' + icon('layers', 18) +
-      '<div><strong>Comment est calculé le solde dû ?</strong><span>Solde dû = total cotisé sur toutes les cartes − total déjà retiré. Le montant journalier cumulé est la somme des cartes actives. Un client sans retrait conserve donc toute son épargne.</span></div>' +
+      '<div><strong>Comment est calculé le solde dû ?</strong><span>Solde dû = total cotisé sur toutes les cartes − commissions − déjà payé − avances d’argent (et leurs frais). Le montant journalier cumulé est la somme des cartes actives.</span></div>' +
     '</div>' +
     (rows.length
       ? '<div class="multi-list">' + rows.map(function (x) {

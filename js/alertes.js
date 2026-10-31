@@ -119,10 +119,18 @@ function computeAlerts() {
   }
 
   /* 14. Clients à risque */
-  const risque = db.clients.filter(function (c) { return c.actif !== false && clientRisk(c).level === 'risque'; });
+  const risque = db.clients.filter(function (c) { return c.actif !== false && clientRisk(c).niveau === 'risque'; });
   if (risque.length) {
     add('important', 'risque', risque.length + ' client(s) à risque',
       'Aucun versement depuis plusieurs jours : ' + risque.slice(0, 3).map(function (c) { return c.nom; }).join(', ') + (risque.length > 3 ? '…' : '') + '.', '#/risques', risque.length);
+  }
+
+  /* 14 bis. Carte clôturée qui doit encore une avance d'argent */
+  const avancesBloquees = db.cartes.filter(function (c) { return c.statut !== 'active' && cardTotals(c).resteARembourser > 0; });
+  if (avancesBloquees.length) {
+    const c0 = avancesBloquees[0];
+    add('important', 'avance-cloturee', avancesBloquees.length + ' avance(s) d’argent sur une carte clôturée',
+      'Ces cartes ne reçoivent plus de cotisations : l’avance ne se rembourse plus. Réactivez la carte ou réglez avec le client.', '#/client/' + c0.clientId, avancesBloquees.length);
   }
 
   /* 15. Reçus altérés */
