@@ -84,6 +84,20 @@ test.describe('Avance d’argent', () => {
     await expect(page.locator('.journal-foot strong.out')).toContainText('1 000');
     expect(await page.evaluate(() => STATUT_LABELS.avance)).toBe('En avance');
   });
+
+  test('les frais d’avance comptent dans les Commissions (même sans barème)', async ({ page }) => {
+    await page.evaluate(id => {
+      const c = carteById(id);
+      db.settings.commission.actif = false;
+      db.operations.push({ id: 'op_pret_f', type: 'sortie', categorie: 'pret', libelle: 'Avance d’argent · test', montant: 20000, frais: 2000, carteId: id, clientId: c.clientId, date: todayISO(), mode: 'Espèces' });
+      saveDB(); state.commPeriod = 'mois'; location.hash = '#/commission';
+    }, carte.id);
+    const tot = await page.evaluate(() => commissionTotals());
+    expect(tot.frais).toBe(2000);
+    expect(tot.events.find(e => e.type === 'frais')).toMatchObject({ montant: 2000, statut: 'acquise' });
+    await expect(page.locator('.mini-kpi', { hasText: 'Frais d’avances' })).toContainText('2 000');
+    await expect(page.locator('.feed-item', { hasText: 'Frais d’avance d’argent' })).toBeVisible();
+  });
 });
 
 test('fiche client : bouton « Avance d’argent » sur la carte et reste à rembourser affiché', async ({ page }) => {

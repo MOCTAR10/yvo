@@ -721,7 +721,17 @@ function commissionTotals() {
       events.push({ date: l.date, montant: l.montant, statut: l.statut, libelle: l.libelle, carteId: c.id, carteLabel: c.label, clientId: c.clientId, clientNom: client ? client.nom : '—' });
     });
   });
-  return { acquise: acquise, estimee: estimee, total: acquise + estimee, events: events.sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); }) };
+  /* Frais d'avance d'argent : gagnés par Yvo dès que l'avance est donnée. */
+  let frais = 0;
+  db.operations.forEach(function (o) {
+    if (o.categorie !== 'pret' || !(Number(o.frais) > 0)) return;
+    const client = clientById(o.clientId);
+    const carte = db.cartes.find(function (c) { return c.id === o.carteId; });
+    frais += Number(o.frais);
+    events.push({ date: o.date, montant: Number(o.frais), statut: 'acquise', type: 'frais', libelle: 'Frais d’avance d’argent', carteId: o.carteId, carteLabel: carte ? carte.label : ((o.snapshot && o.snapshot.carteLabel) || '—'), clientId: o.clientId, clientNom: client ? client.nom : ((o.snapshot && o.snapshot.clientNom) || '—') });
+  });
+  acquise += frais;
+  return { acquise: acquise, estimee: estimee, frais: frais, total: acquise + estimee, events:events.sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); }) };
 }
 
 function defaultBareme() {

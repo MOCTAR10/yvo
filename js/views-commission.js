@@ -36,6 +36,7 @@ function viewCommission() {
   const events = tot.events.filter(function (e) { return !from || e.date >= from; });
   const periodTotal = sum(events, function (e) { return e.montant; });
   const withCom = db.cartes.filter(function (c) { return c.commission; }).length;
+  const show = on || tot.frais > 0;
 
   return '<div class="page comm-page">' +
     pageHead('Votre rémunération', 'Commissions', 'Choisissez vous-même ce que vous prélevez : pourcentage, montant fixe ou jours de cotisation, à chaque versement, par période ou à la clôture.') +
@@ -44,15 +45,17 @@ function viewCommission() {
       '<span>' + (on ? 'Elles sont retenues sur l’épargne des clients et calculées automatiquement.' : 'Activez-les pour que l’application calcule ce que vous prélevez.') + '</span></div>' +
       '<button type="button" class="switch ' + (on ? 'on' : '') + '" role="switch" aria-checked="' + on + '" data-action="comm-toggle" aria-label="Activer les commissions"><i></i></button>' +
     '</section>' +
-    (on
+    (show
       ? '<div class="mini-kpis">' +
           '<div class="mini-kpi"><span>Acquises</span><strong class="green">' + esc(money(tot.acquise)) + '</strong><em>déjà à vous</em></div>' +
           '<div class="mini-kpi"><span>Estimées</span><strong>' + esc(money(tot.estimee)) + '</strong><em>périodes en cours</em></div>' +
           '<div class="mini-kpi"><span>Ce mois</span><strong>' + esc(money(month)) + '</strong><em>acquises</em></div>' +
-          '<div class="mini-kpi"><span>Cartes concernées</span><strong>' + withCom + '</strong><em>sur ' + db.cartes.length + '</em></div>' +
+          (tot.frais > 0
+            ? '<div class="mini-kpi"><span>Frais d’avances</span><strong class="green">' + esc(money(tot.frais)) + '</strong><em>compris dans « Acquises »</em></div>'
+            : '<div class="mini-kpi"><span>Cartes concernées</span><strong>' + withCom + '</strong><em>sur ' + db.cartes.length + '</em></div>') +
         '</div>'
       : '') +
-    '<div class="callout info small">' + icon('coins', 17) + '<div><strong>Comment ça marche ?</strong><span>La commission est retenue sur l’épargne du client : <b>solde dû = total cotisé − commission − déjà payé</b>. L’argent reste en caisse mais devient le vôtre. Chaque carte garde le barème choisi à sa création : changer un taux ne modifie pas le passé.</span></div></div>' +
+    '<div class="callout info small">' + icon('coins', 17) + '<div><strong>Comment ça marche ?</strong><span>La commission est retenue sur l’épargne du client : <b>solde dû = total cotisé − commission − déjà payé</b>. L’argent reste en caisse mais devient le vôtre. Chaque carte garde le barème choisi à sa création : changer un taux ne modifie pas le passé. Les frais pris sur une avance d’argent sont aussi comptés ici.</span></div></div>' +
     '<section class="panel">' +
       '<div class="panel-head"><div><h2>Mes barèmes</h2><p class="panel-sub">Un barème = une ou plusieurs règles. Vous pouvez en créer autant que vous voulez (ex. clients fidèles, clients occasionnels).</p></div>' +
         '<button type="button" class="btn primary sm" data-action="comm-new">' + icon('plus', 15) + ' Nouveau</button></div>' +
@@ -77,7 +80,7 @@ function viewCommission() {
         return '<button type="button" class="template" data-action="comm-template" data-i="' + i + '"><strong>' + esc(t.nom) + '</strong><span>' + esc(t.desc) + '</span></button>';
       }).join('') + '</div>' +
     '</section>' +
-    (on
+    (show
       ? '<section class="panel">' +
           '<div class="panel-head"><div><h2>Journal des commissions</h2><p class="panel-sub">' + events.length + ' ligne' + (events.length > 1 ? 's' : '') + ' · total ' + esc(money(periodTotal)) + '</p></div></div>' +
           '<div class="chips">' + [['mois', 'Ce mois'], ['annee', 'Cette année'], ['tout', 'Tout']].map(function (p) {
