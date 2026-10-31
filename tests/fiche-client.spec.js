@@ -16,7 +16,7 @@ async function openFiche(page) {
 
 /* Calendrier de la carte en cours (une fiche peut en avoir plusieurs). */
 function calOf(page, carteId) {
-  return page.locator('.card-panel#carte-' + carteId + ' .fc-cal');
+  return page.locator('#carte-' + carteId + ' .fc-cal');
 }
 
 test('la fiche s’affiche avec les 3 chiffres clés et sans erreur', async ({ page }) => {
@@ -144,6 +144,54 @@ test('« Encaisser aujourd’hui » ouvre la feuille d’encaissement', async ({
   await expect(page.locator('.modal.pay-sheet #form-pay')).toBeVisible();
   await expect(page.locator('.modal.pay-sheet')).toContainText(info.nom);
   expect(errors).toEqual([]);
+});
+
+test('chaque carte est dessinée avec son montant par jour et son propre calendrier', async ({ page }) => {
+  const errors = await openApp(page);
+  const info = await page.evaluate(() => {
+    const t = todayISO();
+    const c = db.clients.find(cl => cartesOf(cl.id).filter(x => dueOn(x, t)).length >= 2);
+    const cards = cartesOf(c.id).sort((a, b) => a.dateDebut.localeCompare(b.dateDebut));
+    return { client: c.id, cards: cards.map(x => ({ id: x.id, label: x.label, jour: money(x.montantJournalier) + ' / jour' })) };
+  });
+  await goto(page, 'client/' + info.client);
+  await expect(page.locator('.fc-card-panel .vcard.fc-card')).toHaveCount(info.cards.length);
+  for (const c of info.cards) {
+    const card = page.locator('#carte-' + c.id + ' .fc-card');
+    await expect(card.locator('h3')).toHaveText(c.label);
+    await expect(card.locator('.fc-card-daily')).toHaveText(c.jour);
+    await expect(card.locator('.fc-cal')).toHaveCount(1);
+    await expect(page.locator('#carte-' + c.id + ' [data-action="new-pret"]')).toContainText('Avance d’argent');
+  }
+  // chaque carte change de mois sans toucher l'autre
+  const [a, b] = info.cards;
+  const month = await page.evaluate(() => monthKeyOf(todayISO()));
+  await page.locator('#carte-' + a.id + ' [data-action="cal-prev"]').click();
+  await expect(page.locator('#carte-' + a.id + ' .fc-cal')).toHaveAttribute('data-month', await page.evaluate(m => shiftMonth(m, -1), month));
+  await expect(page.locator('#carte-' + b.id + ' .fc-cal')).toHaveAttribute('data-month', month);
+  expect(errors).toEqual([]);
+});
+
+test('chaque jour pointé porte un ✓ et les cases restent assez grandes', async ({ page }) => {
+  const { info } = await openFiche(page);
+  const res = await page.evaluate(id => {
+    const bad = [];
+    let minW = 999, minH = 999;
+    document.querySelectorAll('#carte-' + id + ' .fc-cal .cal-day').forEach(el => {
+      const d = el.getAttribute('data-date');
+      const v = versementFor(id, d);
+      const inPeriod = !el.disabled;
+      const check = !!el.querySelector('.cal-check');
+      if (!!(v && inPeriod) !== check) bad.push(d + (check ? ' ✓ en trop' : ' ✓ manquant'));
+      const r = el.getBoundingClientRect();
+      minW = Math.min(minW, r.width); minH = Math.min(minH, r.height);
+    });
+    return { bad, minW, minH };
+  }, info.carte);
+  expect(res.bad).toEqual([]);
+  expect(res.minW).toBeGreaterThanOrEqual(36);
+  expect(res.minH).toBeGreaterThanOrEqual(36);
+  await expect(page.locator('#carte-' + info.carte + ' .cal-day.pointed .cal-check').first()).toHaveText('✓');
 });
 
 test('la fiche ne déborde pas horizontalement', async ({ page }) => {

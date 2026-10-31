@@ -161,7 +161,7 @@ const CAL_WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const CAL_KIND_LABELS = {
   complet: 'Payé',
   partiel: 'Payé en partie',
-  avance: 'Payé en plus (avance)',
+  avance: 'En avance (payé en plus)',
   covered: 'Couvert par une avance',
   absent: 'Pas payé',
   missed: 'Pas payé',
@@ -212,12 +212,17 @@ function calendarHTML(carte) {
       if (marks) mobile = true;
     }
     if (cell.iso === t) { cls += ' today'; label += ' · aujourd’hui'; }
+    /* ✓ = jour déjà pointé (la couleur dit comment il a été payé) */
+    if (d.v && d.inPeriod) { cls += ' pointed'; label += ' · pointé'; }
     return '<button type="button" class="' + cls + '" data-date="' + esc(cell.iso) + '"' +
       (d.inPeriod ? ' data-action="open-day" data-carte="' + esc(carte.id) + '"' : ' disabled') +
       ' title="' + esc(label) + '" aria-label="' + esc(label) + '">' +
-      '<span class="dnum">' + cell.day + '</span>' +
-      (marks ? '<span class="cal-marks">' + marks + '</span>' : '') +
-      (d.montant > 0 ? '<span class="damt">' + numberFR(d.montant) + '</span>' : '') +
+      '<span class="cal-top"><span class="dnum">' + cell.day + '</span>' +
+        (d.v && d.inPeriod ? '<i class="cal-check" aria-hidden="true">✓</i>' : '') + '</span>' +
+      '<span class="cal-bot">' +
+        (d.montant > 0 ? '<span class="damt">' + numberFR(d.montant) + '</span>' : '') +
+        (marks ? '<span class="cal-marks">' + marks + '</span>' : '') +
+      '</span>' +
     '</button>';
   }).join('');
 
@@ -244,11 +249,12 @@ function calendarHTML(carte) {
     '<div class="fc-legend">' +
       '<span><i class="lg complet"></i> Payé</span>' +
       '<span><i class="lg partiel"></i> En partie</span>' +
-      '<span><i class="lg avance"></i> Payé en plus</span>' +
+      '<span><i class="lg avance"></i> En avance</span>' +
       (couverts ? '<span><i class="lg covered"></i> Couvert</span>' : '') +
       '<span><i class="lg absent"></i> Pas payé</span>' +
       '<span><i class="lg future"></i> À venir</span>' +
       '<span><i class="lg today"></i> Aujourd’hui</span>' +
+      '<span><i class="cal-check">✓</i> Déjà pointé</span>' +
       (mobile ? '<span class="fc-legend-mm"><img src="' + PAY_MODE_LOGOS.airtel + '" alt=""><img src="' + PAY_MODE_LOGOS.moov + '" alt=""> Payé par mobile money</span>' : '') +
     '</div>' +
     '<p class="fc-cal-hint">' + icon('eye', 13) + ' Touchez un jour pour voir ou corriger le paiement.</p>' +
@@ -269,13 +275,9 @@ function cardProgressHTML(carte, tot, active) {
       progressBar(pctJours, 'blue') +
       '<div class="fc-prog-foot"><span>' + esc(fmtDate(carte.dateDebut, 'medium')) + '</span><b>' + esc(periode) + '</b><span>' + esc(fmtDate(carte.dateFin, 'medium')) + '</span></div>' +
     '</div>' +
-    '<div class="fc-prog fc-prog-money">' +
-      '<div class="fc-prog-head"><span>Cotisé</span><strong>' + esc(money(tot.totalVerse, true)) + ' <em>sur ' + esc(money(tot.objectif)) + '</em></strong></div>' +
-      progressBar(tot.progression, tot.retard > 0 ? 'gold' : 'green') +
-      '<div class="fc-prog-foot"><span>' + Math.round(tot.progression) + '% de l’objectif</span><b>Reste ' + esc(money(tot.manquant)) + '</b></div>' +
-    '</div>' +
+    /* l'argent cotisé est déjà sur la carte : ici seulement ce qu'il reste */
     '<div class="fc-card-figs">' +
-      '<div><span>Par jour</span><strong>' + esc(money(carte.montantJournalier)) + '</strong></div>' +
+      '<div><span>Reste à cotiser</span><strong>' + esc(money(tot.manquant)) + '</strong></div>' +
       '<div><span>Retard</span><strong class="' + (tot.retard > 0 ? 'red' : 'green') + '">' + esc(tot.retard > 0 ? money(tot.retard) : 'À jour') + '</strong></div>' +
       (commissionActive() || tot.commission > 0
         ? '<div><span>Commission</span><strong class="amber">' + esc(money(tot.commission)) + '</strong></div>'
@@ -325,8 +327,7 @@ function recentPaymentsHTML(client, multi) {
   '</section>';
 }
 
-function cardPanelHTML(carte) {
-  const client = clientById(carte.clientId);
+function cardPanelHTML(carte, idx) {
   const tot = cardTotals(carte);
   const t = todayISO();
   const active = carte.statut === 'active';
@@ -336,28 +337,39 @@ function cardPanelHTML(carte) {
     return o.type === 'sortie' && o.categorie === 'retrait' && o.carteId === carte.id;
   }).sort(function (a, b) { return b.date.localeCompare(a.date); });
 
-  return '<section class="card-panel" id="carte-' + esc(carte.id) + '">' +
-    '<div class="cp-head">' +
-      '<div class="cp-title-wrap">' +
-        '<div class="cp-title"><h3>' + esc(carte.label) + '</h3>' + statusBadge(carte) +
-          (tot.retard > 0 && active ? badge('Retard ' + money(tot.retard, true), 'red') : '') + '</div>' +
-        '<div class="cp-period">' + icon('calendar', 14) +
-          ' Début <strong>' + esc(fmtDate(carte.dateDebut, 'medium')) + '</strong>' +
-          ' <span class="arrow">→</span> Fin <strong>' + esc(fmtDate(carte.dateFin, 'medium')) + '</strong>' +
-          ' <span class="dot">·</span> ' + tot.jours + ' jours' +
-          (active ? ' <span class="dot">·</span> ' + tot.joursRestants + ' jour' + (tot.joursRestants > 1 ? 's' : '') + ' restant' + (tot.joursRestants > 1 ? 's' : '') : '') +
-        '</div>' +
+  const couleur = carte.typeCouleur != null ? carte.typeCouleur : (idx || 0) % 4;
+  const dueToday = active && t >= carte.dateDebut && t <= carte.dateFin;
+  const etat = !active ? 'Clôturée' : tot.retard > 0 ? 'Retard ' + money(tot.retard, true) : t > carte.dateFin ? 'Terminée' : 'À jour';
+
+  /* La carte « physique » (couleur de son type) avec le calendrier dedans */
+  return '<section class="fc-card-panel" id="carte-' + esc(carte.id) + '">' +
+    '<div class="vcard fc-card v' + esc(couleur) + (active ? '' : ' closed') + '">' +
+      '<span class="vc-shine" aria-hidden="true"></span>' +
+      '<div class="fc-card-top">' +
+        '<span class="vc-brand">' + esc(db.settings.company.nom || 'YVO Épargne') + (carte.typeNom ? ' · ' + esc(carte.typeNom) : '') + '</span>' +
+        '<span class="vc-state' + (tot.retard > 0 && active ? ' late' : '') + '">' + esc(etat) + '</span>' +
       '</div>' +
-      '<div class="cp-actions">' +
-        (active && t >= carte.dateDebut && t <= carte.dateFin ? '<button type="button" class="btn sm primary" data-action="open-pay" data-client="' + esc(carte.clientId) + '" data-carte="' + esc(carte.id) + '" data-date="' + esc(t) + '">' + icon('check', 14) + ' Encaisser</button>' : '') +
-        (canPay ? '<button type="button" class="btn sm ghost" data-action="new-retrait" data-client="' + esc(carte.clientId) + '" data-carte="' + esc(carte.id) + '">' + icon('receipt', 14) + ' Payer</button>' : '') +
-        '<button type="button" class="icon-btn" data-action="edit-carte" data-carte="' + esc(carte.id) + '" title="Modifier la carte">' + icon('edit', 16) + '</button>' +
-        '<button type="button" class="icon-btn" data-action="toggle-carte" data-carte="' + esc(carte.id) + '" title="' + (active ? 'Clôturer la carte' : 'Réactiver la carte') + '">' + icon(active ? 'lock' : 'unlock', 16) + '</button>' +
-        '<button type="button" class="icon-btn danger" data-action="delete-carte" data-carte="' + esc(carte.id) + '" title="Supprimer la carte">' + icon('trash', 16) + '</button>' +
+      '<div class="fc-card-id">' +
+        '<div class="vc-chip" aria-hidden="true"><i></i><i></i><i></i></div>' +
+        '<div class="fc-card-name"><h3>' + esc(carte.label) + '</h3><span>du ' + esc(fmtDate(carte.dateDebut, 'medium')) + ' au ' + esc(fmtDate(carte.dateFin, 'medium')) + '</span></div>' +
+        '<div class="fc-card-daily"><strong>' + esc(money(carte.montantJournalier)) + '</strong> <span>/ jour</span></div>' +
       '</div>' +
+      calendarHTML(carte) +
+      '<div class="fc-card-foot"><span>Cotisé <strong>' + esc(money(tot.totalVerse)) + '</strong> sur ' + esc(money(tot.objectif, true)) + '</span><b>' + Math.round(tot.progression) + ' %</b></div>' +
+      '<div class="vc-bar"><span style="width:' + tot.progression.toFixed(1) + '%"></span></div>' +
+    '</div>' +
+    '<div class="fc-card-body">' +
+    '<div class="fc-card-actions">' +
+      (dueToday ? '<button type="button" class="btn primary" data-action="open-pay" data-client="' + esc(carte.clientId) + '" data-carte="' + esc(carte.id) + '" data-date="' + esc(t) + '">' + icon('check', 15) + ' Encaisser</button>' : '') +
+      (canPay ? '<button type="button" class="btn ghost" data-action="new-retrait" data-client="' + esc(carte.clientId) + '" data-carte="' + esc(carte.id) + '">' + icon('receipt', 15) + ' Payer</button>' : '') +
+      (active ? '<button type="button" class="btn ghost" data-action="new-pret" data-client="' + esc(carte.clientId) + '" data-carte="' + esc(carte.id) + '">' + icon('coins', 15) + ' Avance d’argent</button>' : '') +
+      '<span class="fc-card-tools">' +
+        '<button type="button" class="icon-btn" data-action="edit-carte" data-carte="' + esc(carte.id) + '" title="Modifier la carte" aria-label="Modifier la carte">' + icon('edit', 16) + '</button>' +
+        '<button type="button" class="icon-btn" data-action="toggle-carte" data-carte="' + esc(carte.id) + '" title="' + (active ? 'Clôturer la carte' : 'Réactiver la carte') + '" aria-label="' + (active ? 'Clôturer la carte' : 'Réactiver la carte') + '">' + icon(active ? 'lock' : 'unlock', 16) + '</button>' +
+        '<button type="button" class="icon-btn danger" data-action="delete-carte" data-carte="' + esc(carte.id) + '" title="Supprimer la carte" aria-label="Supprimer la carte">' + icon('trash', 16) + '</button>' +
+      '</span>' +
     '</div>' +
     cardProgressHTML(carte, tot, active) +
-    calendarHTML(carte) +
     '<details class="card-history fc-more">' +
       '<summary><span>' + icon('layers', 15) + ' Tous les chiffres de la carte</span><span>' + icon('chevron-right', 14) + '</span></summary>' +
       '<div class="mini-stats">' +
@@ -371,7 +383,7 @@ function cardPanelHTML(carte) {
         '<div><span>Retard à ce jour</span><strong class="' + (tot.retard > 0 ? 'red' : '') + '">' + esc(money(tot.retard)) + '</strong></div>' +
         '<div class="solde-stat"><span>Solde dû au client</span><strong>' + esc(money(tot.solde)) + '</strong></div>' +
       '</div>' +
-      '<p class="muted small fc-more-line">' + tot.joursComplets + ' jour' + (tot.joursComplets > 1 ? 's' : '') + ' payé' + (tot.joursComplets > 1 ? 's' : '') + ' en entier · ' + tot.joursPartiels + ' en partie · ' + tot.joursAvances + ' en plus · ' + tot.joursAbsents + ' pas payé' + (tot.joursAbsents > 1 ? 's' : '') + '</p>' +
+      '<p class="muted small fc-more-line">' + tot.joursComplets + ' jour' + (tot.joursComplets > 1 ? 's' : '') + ' payé' + (tot.joursComplets > 1 ? 's' : '') + ' en entier · ' + tot.joursPartiels + ' en partie · ' + tot.joursAvances + ' en avance · ' + tot.joursAbsents + ' pas payé' + (tot.joursAbsents > 1 ? 's' : '') + '</p>' +
     '</details>' +
     '<details class="card-history">' +
       '<summary><span>' + icon('clock', 15) + ' Historique des versements</span><span>' + history.length + ' pointage' + (history.length > 1 ? 's' : '') + ' ' + icon('chevron-right', 14) + '</span></summary>' +
@@ -396,43 +408,8 @@ function cardPanelHTML(carte) {
             '<td class="right"><button type="button" class="btn sm ghost" data-action="open-receipt" data-op="' + esc(o.id) + '">' + icon('printer', 14) + ' Reçu</button></td></tr>';
         }).join('') + '</tbody></table></div></details>'
       : '') +
-  '</section>';
-}
-
-/* Numéro de carte stable dérivé de l'identifiant */
-function cardNumber(id) {
-  let h = 2166136261;
-  const s = String(id);
-  let out = '';
-  for (let i = 0; i < 12; i += 1) {
-    h ^= s.charCodeAt(i % s.length) + i;
-    h = Math.imul(h, 16777619) >>> 0;
-    out += String(h % 10);
-  }
-  return out.replace(/(\d{4})(?=\d)/g, '$1 ');
-}
-
-/* Carte virtuelle d'épargne : toutes les infos clés d'un coup d'œil */
-function virtualCardHTML(client, carte, idx) {
-  const tot = cardTotals(carte);
-  const risk = clientRisk(client);
-  const active = carte.statut === 'active';
-  const state = !active ? 'Clôturée' : tot.retard > 0 ? 'En retard' : 'À jour';
-  return '<a class="vcard v' + (carte.typeCouleur != null ? carte.typeCouleur : idx % 4) + (active ? '' : ' closed') + '" href="#carte-' + esc(carte.id) + '" data-action="goto-carte" data-carte="' + esc(carte.id) + '" aria-label="Carte ' + esc(carte.label) + '">' +
-    '<span class="vc-shine" aria-hidden="true"></span>' +
-    '<div class="vc-top"><span class="vc-brand">' + esc(db.settings.company.nom || 'YVO Épargne') + (carte.typeNom ? ' · ' + esc(carte.typeNom) : '') + '</span><span class="vc-state ' + (tot.retard > 0 && active ? 'late' : '') + '">' + state + '</span></div>' +
-    '<div class="vc-chip" aria-hidden="true"><i></i><i></i><i></i></div>' +
-    '<div class="vc-number">' + cardNumber(carte.id) + '</div>' +
-    '<div class="vc-amount"><span>Cotisé</span><strong>' + esc(money(tot.totalVerse)) + '</strong></div>' +
-    '<div class="vc-bar"><span style="width:' + tot.progression.toFixed(1) + '%"></span></div>' +
-    '<div class="vc-foot">' +
-      '<div><span>Titulaire</span><strong>' + esc(client.nom) + '</strong></div>' +
-      '<div><span>Journalier</span><strong>' + esc(money(carte.montantJournalier, true)) + '</strong></div>' +
-      '<div><span>Du</span><strong>' + esc(fmtDate(carte.dateDebut, 'short').slice(0, 5)) + '</strong></div>' +
-      '<div><span>Au</span><strong>' + esc(fmtDate(carte.dateFin, 'short').slice(0, 5)) + '</strong></div>' +
     '</div>' +
-    '<div class="vc-label">' + esc(carte.label) + ' · ' + Math.round(tot.progression) + '%</div>' +
-  '</a>';
+  '</section>';
 }
 
 function viewClient(id) {
@@ -524,11 +501,10 @@ function viewClient(id) {
         '<button type="button" class="icon-btn danger" data-action="delete-client" data-client="' + esc(client.id) + '" title="Supprimer le client" aria-label="Supprimer le client">' + icon('trash', 16) + '</button>' +
       '</div>' +
     '</section>' +
-    (cards.length ? '<div class="vcards">' + cards.map(function (c, i) { return virtualCardHTML(client, c, i); }).join('') + '</div>' : '') +
     '<div class="section-head"><div><h2>Cartes d’épargne</h2><p>Chaque carte possède son calendrier et ses calculs.</p></div>' +
       '<button type="button" class="btn sm primary" data-action="new-carte" data-client="' + esc(client.id) + '">' + icon('plus', 15) + ' Ajouter une carte</button></div>' +
     (cards.length
-      ? cards.map(function (c) { return cardPanelHTML(c); }).join('')
+      ? cards.map(function (c, i) { return cardPanelHTML(c, i); }).join('')
       : '<div class="panel">' + emptyState('layers', 'Aucune carte pour ce client',
           'Créez une carte avec un montant journalier et une période de cotisation pour commencer le pointage.',
           '<button type="button" class="btn primary" data-action="new-carte" data-client="' + esc(client.id) + '">' + icon('plus', 16) + ' Créer la première carte</button>') + '</div>') +
