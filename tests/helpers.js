@@ -13,7 +13,7 @@ async function login(page, password = PASSWORD) {
   await page.goto('/');
   await page.fill('#unlock-pin', password);
   await page.click('.login-btn');
-  await expect(page.locator('#app')).toBeVisible();
+  await expect(page.locator('#app')).toBeVisible({ timeout: 15000 });
 }
 
 /* Ouvre l'application connectée, avec les données de démonstration par défaut. */

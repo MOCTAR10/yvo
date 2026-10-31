@@ -142,11 +142,11 @@ function syncBaseUrl() {
   return /^https?:$/.test(location.protocol) ? location.origin : '';
 }
 
-function syncApi(path, body, token) {
+function syncApi(path, body, token, timeoutMs) {
   const base = syncBaseUrl();
   if (!base) return Promise.reject(new Error('Adresse du serveur manquante.'));
   const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : 0;
+  const timer = ctrl ? setTimeout(function () { ctrl.abort(); }, timeoutMs || 30000) : 0;
   const headers = { 'Content-Type': 'application/json' };
   const tk = token || (syncCfg && syncCfg.token);
   if (tk) headers.Authorization = 'Bearer ' + tk;

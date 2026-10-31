@@ -326,7 +326,8 @@ function loginWithPassword(password) {
     id: (syncCfg && syncCfg.deviceId) || newDeviceId(),
     name: (syncCfg && syncCfg.deviceName) || deviceDefaultName()
   };
-  return syncApi('/api/login', { password: password, device: device }, 'none').then(function (r) {
+  /* réseau faible : au-delà de 8 s on vérifie sur le téléphone (si Yvo s'y est déjà connecté) */
+  return syncApi('/api/login', { password: password, device: device }, 'none', 8000).then(function (r) {
     const prev = syncCfg;
     syncCfg = {
       server: '', token: r.token, account: r.account, deviceId: device.id, deviceName: device.name,
@@ -1014,10 +1015,10 @@ function handleForm(type, form, submitter) {
     }
     const password = String(f.get('pin') || '');
     if (!password) return;
-    if (btn) btn.disabled = true;
+    if (btn) { btn.disabled = true; btn.setAttribute('data-label', btn.innerHTML); btn.textContent = 'Connexion…'; }
     if (error) error.textContent = '';
     loginWithPassword(password).then(function (res) {
-      if (btn) btn.disabled = false;
+      if (btn) { btn.disabled = false; btn.innerHTML = btn.getAttribute('data-label') || btn.innerHTML; }
       if (res === 'ok') {
         try { sessionStorage.setItem('yvo-acces', '1'); localStorage.removeItem('yvo-acces-echecs'); } catch (err) { /* ignore */ }
         const card = document.querySelector('.login-card');
