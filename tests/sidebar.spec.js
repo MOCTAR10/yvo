@@ -27,4 +27,20 @@ test.describe('Barre latérale', () => {
     await expect(page.locator('#side-version')).toContainText(await page.evaluate(() => APP_VERSION));
     expect(errors).toEqual([]);
   });
+
+  test('la barre reste en place quand la page défile, et la molette sur la barre fait défiler la page', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const errors = await openApp(page);
+    await page.evaluate(() => { location.hash = '#/clients'; });
+    await expect(page.locator('.crow').first()).toBeVisible();
+    await page.mouse.move(120, 300);
+    await page.mouse.wheel(0, 400);
+    await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(0);
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const box = await page.locator('.sidebar').boundingBox();
+    expect(box.y).toBe(0);
+    expect(box.height).toBe(800);
+    expect(errors).toEqual([]);
+  });
 });
+

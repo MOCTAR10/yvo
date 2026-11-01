@@ -975,7 +975,6 @@ details.dash-more { margin-top: 16px; }
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  overscroll-behavior: contain;
   margin-right: -8px;
   padding-right: 8px;
   scrollbar-width: thin;
@@ -1059,3 +1058,13 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 @media (max-width: 600px) { .mini-kpis > :nth-child(3):last-child { grid-column: 1 / -1; } }
 .modal-body form > .pay-chips, .modal-body form > .status-preview, .modal-body form > .hint { margin-top: 0; margin-bottom: 0; }
 .modal-body form > .status-preview:empty { display: none; }
+
+/* Barre latérale fixe (ordinateur) : elle ne bouge jamais quand la page défile,
+   et la molette au-dessus d'elle fait défiler la page si la liste n'a rien à défiler. */
+@media (min-width: 981px) {
+  .sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: 252px; height: auto; }
+  .app > .main { grid-column: 2; }
+}
+.sidebar .nav.fade-top { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 28px); mask-image: linear-gradient(to bottom, transparent 0, #000 28px); }
+.sidebar .nav.fade-bottom { -webkit-mask-image: linear-gradient(to top, transparent 0, #000 28px); mask-image: linear-gradient(to top, transparent 0, #000 28px); }
+.sidebar .nav.fade-top.fade-bottom { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%); mask-image: linear-gradient(to bottom, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%); }

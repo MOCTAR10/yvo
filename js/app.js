@@ -110,6 +110,14 @@ document.addEventListener('focusout', function () {
   }, 60);
 });
 
+/* Fondu en haut / en bas de la liste quand des liens sont cachés (petit écran). */
+function updateNavFade() {
+  const nav = document.getElementById('nav');
+  if (!nav) return;
+  nav.classList.toggle('fade-top', nav.scrollTop > 2);
+  nav.classList.toggle('fade-bottom', nav.scrollTop + nav.clientHeight < nav.scrollHeight - 2);
+}
+
 function buildNav() {
   const nav = document.getElementById('nav');
   const bottom = document.getElementById('bottom-nav');
@@ -124,6 +132,11 @@ function buildNav() {
         (n.id === 'pointage' ? '<span class="nav-badge" id="nav-due" hidden></span>' : '') +
       '</a>';
     }).join('');
+  }
+  if (nav && !nav.dataset.fade) {
+    nav.dataset.fade = '1';
+    nav.addEventListener('scroll', updateNavFade, { passive: true });
+    window.addEventListener('resize', updateNavFade);
   }
   const ver = document.getElementById('side-version');
   if (ver) ver.textContent = 'v' + APP_VERSION + ' · marche sans internet';
@@ -277,6 +290,7 @@ function render() {
     if (top < sideNav.scrollTop) sideNav.scrollTop = top - 8;
     else if (top + sideActive.offsetHeight > sideNav.scrollTop + sideNav.clientHeight) sideNav.scrollTop = top + sideActive.offsetHeight - sideNav.clientHeight + 8;
   }
+  updateNavFade();
   document.querySelectorAll('.bottom-link').forEach(function (el) {
     el.classList.toggle('active', el.getAttribute('data-nav') === activeBottom);
   });
