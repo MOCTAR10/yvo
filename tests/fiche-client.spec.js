@@ -191,6 +191,10 @@ test('chaque jour pointé porte un ✓ et les cases restent assez grandes', asyn
   expect(res.bad).toEqual([]);
   expect(res.minW).toBeGreaterThanOrEqual(36);
   expect(res.minH).toBeGreaterThanOrEqual(36);
+  // le 1er du mois, le mois affiché peut n'avoir aucun jour payé : on remonte d'un mois
+  if (!(await page.locator('#carte-' + info.carte + ' .cal-day.pointed.complet').count())) {
+    await page.locator('#carte-' + info.carte + ' [data-action="cal-prev"]').click();
+  }
   await expect(page.locator('#carte-' + info.carte + ' .cal-day.pointed.complet .cal-check').first()).toHaveText('✓');
   // un jour pointé « pas payé » porte une croix, pas une coche (lisible pour un débutant)
   const absent = page.locator('.cal-day.pointed.absent .cal-check');

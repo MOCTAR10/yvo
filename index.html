@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="theme-color" content="#0a3a2b">
   <meta name="description" content="YVO Épargne — collecte quotidienne, clients, pointage, trésorerie et reçus. Fonctionne 100 % hors ligne.">
   <meta name="mobile-web-app-capable" content="yes">
@@ -29,12 +29,11 @@
       </a>
       <nav class="nav" id="nav" aria-label="Navigation principale"></nav>
       <div class="sidebar-foot">
-        <a class="caisse-mini" id="caisse-mini" href="#/tresorerie" aria-label="Voir la trésorerie"></a>
         <button type="button" class="lock-link" data-action="lock-now">
           <svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           Verrouiller
         </button>
-        <div class="side-version">v2.0 · 100 % hors ligne</div>
+        <div class="side-version" id="side-version"></div>
       </div>
     </aside>
 

@@ -150,10 +150,12 @@ function openModal(opts) {
         (opts.footer ? '<div class="modal-foot">' + opts.footer + '</div>' : '') +
       '</div>' +
     '</div>';
+  if (!document.body.classList.contains('modal-open')) modalReturnFocus = document.activeElement;
   document.body.classList.add('modal-open');
   if (typeof opts.onMount === 'function') opts.onMount();
   setTimeout(function () {
-    const first = root.querySelector('[data-autofocus], .modal-body input:not([type="hidden"]), .modal-body select, .modal-body textarea, .modal-body button');
+    const first = root.querySelector('[data-autofocus], .modal-body input:not([type="hidden"]), .modal-body select, .modal-body textarea, .modal-body button') ||
+      root.querySelector('.modal-foot .btn.ghost, .modal-foot .btn, .modal-head .icon-btn');
     if (first) {
       try { first.focus({ preventScroll: true }); } catch (err) { first.focus(); }
       if (first.select && first.type !== 'date') { try { first.select(); } catch (err) { /* ignore */ } }
@@ -161,11 +163,31 @@ function openModal(opts) {
   }, 40);
 }
 
+let modalReturnFocus = null;
+
 function closeModal() {
   const root = document.getElementById('modal-root');
   if (root) root.innerHTML = '';
   document.body.classList.remove('modal-open');
+  const back = modalReturnFocus;
+  modalReturnFocus = null;
+  if (back && back.isConnected && typeof back.focus === 'function') { try { back.focus({ preventScroll: true }); } catch (err) { /* ignore */ } }
 }
+
+/* Tab reste dans la fenêtre ouverte : on ne se perd pas dans la page derrière. */
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Tab') return;
+  const dialog = document.querySelector('#modal-root .modal');
+  if (!dialog) return;
+  const items = Array.prototype.filter.call(
+    dialog.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'),
+    function (el) { return el.offsetParent !== null || el === document.activeElement; });
+  if (!items.length) return;
+  const first = items[0], last = items[items.length - 1];
+  if (!dialog.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+  else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
 
 /* ------------------------------------------------------------
    Notifications

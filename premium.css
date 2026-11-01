@@ -35,9 +35,9 @@ input, select, textarea { font-size: 16px; }
 .cal-day.partiel { background: var(--amber-bg); border-color: #ecd7a8; color: #7d4c08; }
 .cal-day.avance { background: #dfeaf6; border-color: #b8d0e8; color: #1f4d78; }
 .cal-day.covered { background: #eef4fa; border: 1px dashed #b8d0e8; color: #3d6a93; }
-.lg.partiel { background: var(--amber-bg); border-color: #ecd7a8; }
-.lg.avance { background: #dfeaf6; border-color: #b8d0e8; }
-.lg.covered { background: #eef4fa; border: 1px dashed #b8d0e8; }
+i.lg.partiel { background: var(--amber-bg); border-color: #ecd7a8; }
+i.lg.avance { background: #dfeaf6; border-color: #b8d0e8; }
+i.lg.covered { background: #eef4fa; border: 1px dashed #b8d0e8; }
 
 /* Boutons additionnels */
 .btn.wa { background: #1fa855; color: #fff; border-color: #1fa855; }
@@ -490,7 +490,6 @@ input, select, textarea { font-size: 16px; }
   .pointage-page, .plus-page { max-width: 760px; margin: 0 auto; }
   .prow-list { grid-template-columns: 1fr 1fr; }
   .crow-list { grid-template-columns: 1fr 1fr; }
-  .quick-actions { max-width: 560px; }
   .vcards { flex-wrap: wrap; overflow: visible; }
   .modal.pay-sheet { max-width: 480px; }
   .fab { display: none; }
@@ -969,3 +968,94 @@ details.dash-more { margin-top: 16px; }
 .other-tab-card { max-width: 380px; display: flex; flex-direction: column; gap: 12px; padding: 26px; border-radius: 22px; background: var(--surface, #fffdf8); text-align: center; box-shadow: 0 24px 60px -20px rgba(0, 0, 0, .6); }
 .other-tab-card strong { font-size: 19px; }
 .other-tab-card span { color: var(--muted, #5b6660); }
+
+/* Barre latérale : la liste défile si l'écran est bas, le pied reste visible */
+.sidebar { overflow: hidden; }
+.sidebar .nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-right: -8px;
+  padding-right: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+.sidebar .nav::-webkit-scrollbar { width: 6px; }
+.sidebar .nav::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 6px; }
+.sidebar .brand { flex: none; }
+.sidebar-foot { flex: none; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); margin-top: 10px; }
+.nav-link { flex: none; }
+.nav-link:focus-visible { outline: 2px solid #dcb877; outline-offset: 1px; }
+.nav-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.nav-text small { font-size: 11px; font-weight: 600; color: #dcb877; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav-link.active .nav-text small { color: #0e5c45; }
+.nav-sep {
+  flex: none;
+  margin: 12px 12px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6f9483;
+}
+@media (max-height: 860px) {
+  .sidebar { padding-top: 16px; padding-bottom: 14px; }
+  .sidebar .brand { padding-bottom: 12px; }
+  .nav { gap: 2px; }
+  .nav-link { padding: 8px 12px; }
+}
+
+/* Reçu envoyé / versement enregistré : boutons empilés sur toutes les tailles */
+.paid-sheet .modal-foot { flex-direction: column; }
+.paid-sheet .modal-foot .btn { width: 100%; justify-content: center; }
+
+/* Formulaires des fenêtres : un espace régulier entre chaque bloc */
+.modal-body form { display: flex; flex-direction: column; gap: 14px; }
+.modal-body form > .form-grid { margin: 0; }
+.page .callout:not(:last-child) { margin-bottom: 16px; }
+.page > .search-box, .page .search-box + .empty, .page .search-box + .panel { margin-bottom: 14px; }
+/* Pas de petites flèches dans les champs de montant */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+/* La ligne « En retard · … » des clients passe à la ligne au lieu d'être coupée */
+.crow-late { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+/* Français : pas de majuscule forcée sur les jours et les mois */
+.mb-title small, .login-date { text-transform: none; }
+
+/* ---------- Petits écrans (v3.1) ---------- */
+@media (max-width: 980px) {
+  .clients-page { padding-bottom: 84px; }
+  .journal-tools { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+  .journal-tools .select-sm { flex: 1 1 140px; height: 40px; }
+  .panel-head:has(.journal-tools) { flex-wrap: wrap; }
+  .prow-id strong { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.2; }
+  .reliab-name { white-space: normal; }
+  /* liens texte assez grands pour le doigt */
+  .mv-link, .cc-link, .link-arrow { display: inline-flex; align-items: center; min-height: 40px; }
+  .reliab { min-height: 40px; }
+  .chip { height: 40px; }
+  .switch { min-height: 40px; }
+  .modal-body input[type="checkbox"] { width: 22px; height: 22px; }
+  /* clavier ouvert : la barre du bas laisse la place */
+  body.kb-open .bottom-nav { display: none; }
+  body.kb-open .view { padding-bottom: 24px; }
+}
+@media (max-width: 400px) {
+  .fc-figs, .fc-card-figs { gap: 6px; }
+  .fc-fig strong, .fc-card-figs strong { font-size: 14px; white-space: nowrap; }
+  .fc-fig span, .fc-card-figs span { font-size: 10px; line-height: 1.2; }
+  .mb-title strong { font-size: 16px; }
+}
+@media (max-height: 520px) {
+  .login-mark { transform: scale(0.7); margin: -10px 0; }
+  .login-date { margin-bottom: 10px !important; }
+  .login-card { padding-top: 16px; padding-bottom: 16px; gap: 10px; }
+  .modal-sub, .pay-late { display: none; }
+}
+/* Rangées de 3 chiffres : pas de case vide ni de case orpheline */
+@media (min-width: 601px) { .mini-kpis:has(> :nth-child(3):last-child) { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 600px) { .mini-kpis > :nth-child(3):last-child { grid-column: 1 / -1; } }
+.modal-body form > .pay-chips, .modal-body form > .status-preview, .modal-body form > .hint { margin-top: 0; margin-bottom: 0; }
+.modal-body form > .status-preview:empty { display: none; }

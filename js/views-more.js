@@ -218,8 +218,8 @@ function viewCloture() {
       '<div class="panel-head"><div><h2>' + esc(fmtDate(t, 'long')) + '</h2><p class="panel-sub">' + (done ? 'Journée déjà clôturée — vous pouvez la refaire.' : 'Pas encore clôturée.') + '</p></div>' +
         (done ? badge('Clôturée', 'green') : badge('À faire', 'amber')) + '</div>' +
       '<div class="cloture-lines">' +
-        '<div><span>Encaissé aujourd’hui</span><strong class="in">+' + esc(money(today.entrees, true)) + '</strong></div>' +
-        '<div><span>Sorti aujourd’hui</span><strong class="out">−' + esc(money(today.sorties, true)) + '</strong></div>' +
+        '<div><span>Encaissé aujourd’hui</span><strong class="in">' + (today.entrees ? '+' : '') + esc(money(today.entrees, true)) + '</strong></div>' +
+        '<div><span>Sorti aujourd’hui</span><strong class="out">' + (today.sorties ? '−' : '') + esc(money(today.sorties, true)) + '</strong></div>' +
         (function () {
           const mob = { airtel: 0, moov: 0 };
           db.versements.forEach(function (v) {

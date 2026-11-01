@@ -142,7 +142,7 @@ function computeAlerts() {
 
   /* 16. Sauvegarde et stockage */
   if (storageInfo.persisted === false) {
-    add('info', 'stockage', 'Données pas assez protégées', 'Ajoutez l’application à l’écran d’accueil et activez la sauvegarde en ligne.', '#/parametres', 1);
+    add('info', 'stockage', 'Données pas assez protégées', 'Ajoutez l’application à l’écran d’accueil et allumez Internet de temps en temps : tout partira sur le serveur.', '#/parametres', 1);
   }
   if (storageInfo.error) {
     add('critique', 'stockage-err', 'Erreur d’enregistrement', 'La sauvegarde locale a échoué : ' + storageInfo.error + '. Gardez le réseau allumé pour que tout parte sur le serveur.', '#/parametres', storageInfo.error);

@@ -1674,7 +1674,7 @@ svg { flex: none; }
 
 .cal-legend span { display: flex; align-items: center; gap: 4px; }
 
-.lg {
+i.lg {
   width: 9px;
   height: 9px;
   border-radius: 3px;
@@ -1682,11 +1682,11 @@ svg { flex: none; }
   border: 1px solid var(--line);
 }
 
-.lg.complet { background: var(--green-bg); border-color: #bfe1cf; }
-.lg.avance { background: var(--amber-bg); border-color: #ecd7a8; }
-.lg.absent { background: var(--red-bg); border-color: #f0c8c3; }
-.lg.future { background: #fcfaf4; border-color: var(--line); }
-.lg.today { background: #fff; border: 2px solid var(--brand); }
+i.lg.complet { background: var(--green-bg); border-color: #bfe1cf; }
+i.lg.avance { background: var(--amber-bg); border-color: #ecd7a8; }
+i.lg.absent { background: var(--red-bg); border-color: #f0c8c3; }
+i.lg.future { background: #fcfaf4; border-color: var(--line); }
+i.lg.today { background: #fff; border: 2px solid var(--brand); }
 
 /* ============================================================
    Historique & tableaux
@@ -1941,7 +1941,7 @@ svg { flex: none; }
 .mc-client > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 
 .mc-client strong { font-size: 13.5px; }
-.mc-client span { font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 3px; }
+.mc-client > div span { font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 3px; }
 
 .mc-badges { display: flex; gap: 4px; flex-wrap: wrap; }
 

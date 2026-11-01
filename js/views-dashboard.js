@@ -86,13 +86,6 @@ function dashboardGuards() {
     out.push('<a class="guard red" href="#/risques">' + icon('shield-alert', 22) +
       '<span><strong>La caisse ne couvre pas l’argent des clients</strong><em>Il manque ' + esc(money(-cover)) + ' : la caisse (' + esc(money(cashBalance(), true)) + ') est inférieure à ce que vous devez aux clients (' + esc(money(owed, true)) + ').</em></span>' + icon('chevron-right', 18) + '</a>');
   }
-  const lastBackup = db.settings.lastBackup ? new Date(db.settings.lastBackup).getTime() : 0;
-  const daysSince = lastBackup ? Math.floor((Date.now() - lastBackup) / 86400000) : null;
-  if (hasData && !syncCfg && (daysSince === null || daysSince >= 7)) {
-    out.push('<div class="guard amber">' + icon('cloud', 22) +
-      '<span><strong>' + (daysSince === null ? 'Aucune sauvegarde envoyée hors du téléphone' : 'Dernière sauvegarde il y a ' + daysSince + ' jours') + '</strong><em>Vos données sont protégées sur l’appareil. Envoyez-en une copie (WhatsApp, Drive, e-mail) pour être tranquille.</em></span>' +
-      '<button type="button" class="btn sm primary" data-action="share-backup">Envoyer</button></div>');
-  }
   if (hasData && syncCfg && (syncState.status === 'error' || syncState.status === 'offline')) {
     out.push('<a class="guard amber" href="#/parametres">' + icon('cloud', 22) + '<span><strong>' + (syncState.status === 'offline' ? 'Hors ligne' : 'Synchronisation en erreur') + '</strong><em>' + esc(syncStatusLabel()) + '</em></span>' + icon('chevron-right', 18) + '</a>');
   }
@@ -207,7 +200,7 @@ function viewDashboard() {
     '<section class="caisse-card">' +
       '<div class="cc-top"><span>Caisse</span>' + icon('wallet', 18) + '</div>' +
       '<strong class="cc-value">' + esc(money(caisse)) + '</strong>' +
-      '<div class="cc-split"><div><span>Entré aujourd’hui</span><b>+' + esc(money(todayT.entrees, true)) + '</b></div><div><span>Sorti aujourd’hui</span><b>−' + esc(money(todayT.sorties, true)) + '</b></div></div>' +
+      '<div class="cc-split"><div><span>Entré aujourd’hui</span><b>' + (todayT.entrees ? '+' : '') + esc(money(todayT.entrees, true)) + '</b></div><div><span>Sorti aujourd’hui</span><b>' + (todayT.sorties ? '−' : '') + esc(money(todayT.sorties, true)) + '</b></div></div>' +
       '<a class="cc-link" href="#/tresorerie">Voir le détail ' + icon('chevron-right', 13) + '</a>' +
     '</section>';
 

@@ -65,10 +65,10 @@ function openGuideCompany() {
     body:
       '<form id="form-guide-company" data-form="guide-company" autocomplete="off">' +
         '<label class="field"><span>Nom de votre entreprise *</span><input name="nom" required value="' + esc(c.nom === 'Mon entreprise' ? '' : c.nom) + '" placeholder="Ex. YVO Épargne" data-autofocus></label>' +
-        '<label class="field"><span>Votre nom</span><input name="responsable" value="' + esc(c.responsable || '') + '" placeholder="Ex. Yvo Mensah"></label>' +
+        '<label class="field"><span>Votre nom</span><input name="responsable" value="' + esc(c.responsable || '') + '" placeholder="Ex. Yvo"></label>' +
         '<div class="form-grid">' +
           '<label class="field"><span>Téléphone</span><input name="telephone" type="tel" value="' + esc(c.telephone || '') + '"></label>' +
-          '<label class="field"><span>Indicatif du pays</span><input name="indicatif" inputmode="numeric" value="' + esc(db.settings.indicatif || '') + '" placeholder="Ex. 221"><small>Pour écrire aux clients sur WhatsApp.</small></label>' +
+          '<label class="field"><span>Indicatif du pays</span><input name="indicatif" inputmode="numeric" value="' + esc(db.settings.indicatif || '') + '" placeholder="Ex. 241"><small>Pour écrire aux clients sur WhatsApp.</small></label>' +
         '</div>' +
         '<label class="field"><span>Argent en caisse au départ</span><div class="input-suffix"><input name="soldeInitial" type="number" min="0" step="1" value="' + Number(db.settings.soldeInitial || 0) + '"><span>' + esc(db.settings.devise) + '</span></div><small>Mettez 0 si vous ne savez pas encore.</small></label>' +
       '</form>',

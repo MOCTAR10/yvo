@@ -10,7 +10,7 @@ function openClientModal(client) {
     nom: '', telephone: '', telephone2: '', quartier: '', adresse: '', profession: '',
     pieceType: 'CNI', pieceNumero: '', dateInscription: todayISO(), notes: '', actif: true
   };
-  const quartiers = quartiersList();
+  const quartiers = quartierSuggestions();
   openModal({
     title: isEdit ? 'Modifier le client' : 'Nouveau client',
     subtitle: 'Les coordonnées servent d’en-tête aux reçus et au suivi.',
@@ -19,14 +19,14 @@ function openClientModal(client) {
       '<form id="form-client" data-form="save-client" autocomplete="off">' +
         '<input type="hidden" name="id" value="' + esc(c.id || '') + '">' +
         '<div class="form-grid">' +
-          '<label class="field span2"><span>Nom complet *</span><input name="nom" required value="' + esc(c.nom) + '" placeholder="Ex. Awa Ndiaye"></label>' +
-          '<label class="field"><span>Téléphone *</span><input name="telephone" type="tel" required value="' + esc(c.telephone) + '" placeholder="77 000 00 00"></label>' +
+          '<label class="field span2"><span>Nom complet *</span><input name="nom" required value="' + esc(c.nom) + '" placeholder="Ex. Marie-Claire Mboumba"></label>' +
+          '<label class="field"><span>Téléphone *</span><input name="telephone" type="tel" required value="' + esc(c.telephone) + '" placeholder="077 00 00 00"></label>' +
           '<label class="field"><span>Téléphone 2</span><input name="telephone2" type="tel" value="' + esc(c.telephone2 || '') + '"></label>' +
-          '<label class="field"><span>Quartier *</span><input name="quartier" required list="quartiers-list" value="' + esc(c.quartier) + '" placeholder="Ex. Médina"><datalist id="quartiers-list">' +
+          '<label class="field"><span>Quartier *</span><input name="quartier" required list="quartiers-list" value="' + esc(c.quartier) + '" placeholder="Ex. Grand Village"><datalist id="quartiers-list">' +
             quartiers.map(function (q) { return '<option value="' + esc(q) + '"></option>'; }).join('') +
-          '</datalist></label>' +
+          '</datalist><small>Choisissez dans la liste ou écrivez-le.</small></label>' +
           '<label class="field"><span>Profession</span><input name="profession" value="' + esc(c.profession || '') + '" placeholder="Ex. Commerçante"></label>' +
-          '<label class="field span2"><span>Adresse</span><input name="adresse" value="' + esc(c.adresse || '') + '" placeholder="Rue, numéro, repère…"></label>' +
+          '<label class="field span2"><span>Adresse</span><input name="adresse" value="' + esc(c.adresse || '') + '" placeholder="Ex. près du marché, Port-Gentil"></label>' +
           '<label class="field"><span>Type de pièce</span><select name="pieceType">' +
             ['CNI', 'Passeport', 'Permis', 'Carte d’électeur', 'Autre'].map(function (p) {
               return '<option value="' + esc(p) + '"' + (c.pieceType === p ? ' selected' : '') + '>' + esc(p) + '</option>';
@@ -258,7 +258,7 @@ function openDemoResetModal() {
     tone: 'red',
     icon: 'trash',
     message: 'Effacer toutes les données fictives et repartir avec une application vide ?',
-    extra: '<p class="muted">Exportez d’abord vos données si vous souhaitez les conserver.</p>',
+    extra: '<p class="muted">Pensez à télécharger le fichier Excel de vos données si vous voulez les garder.</p>',
     action: 'confirm-reset-demo',
     label: 'Effacer la démo'
   });

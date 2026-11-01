@@ -185,3 +185,16 @@ test('deux fenêtres ouvertes : l’ancienne s’arrête au lieu d’écraser le
   await expect(other.locator('.other-tab')).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test('quartier : liste de Port-Gentil proposée, saisie libre, majuscules remises', async ({ page }) => {
+  const errors = await openApp(page);
+  const r = await page.evaluate(() => {
+    openClientModal(null);
+    const opts = Array.from(document.querySelectorAll('#quartiers-list option')).map(o => o.value);
+    closeModal();
+    return { opts, a: normalizeQuartier('  grand   village '), b: normalizeQuartier('ntchengue'), c: normalizeQuartier('Akosso Nord'), d: normalizeQuartier('') };
+  });
+  expect(r.opts).toEqual(expect.arrayContaining(['Grand Village', 'Balise', 'Ntchengué']));
+  expect(r).toMatchObject({ a: 'Grand Village', b: 'Ntchengué', c: 'Akosso Nord', d: 'Non classé' });
+  expect(errors).toEqual([]);
+});

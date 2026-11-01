@@ -164,7 +164,7 @@ function openDayModal(carteId, date) {
 
   openModal({
     cls: 'pay-sheet',
-    title: 'Pointage du ' + fmtDate(date, 'long'),
+    title: 'Pointage · ' + fmtDate(date, 'medium'),
     subtitle: esc(client ? client.nom : 'Client') + ' · ' + esc(carte.label) + ' · ' + esc(money(daily)) + ' / jour',
     body:
       '<form id="form-day" data-form="save-day" autocomplete="off">' +

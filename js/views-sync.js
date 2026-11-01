@@ -56,7 +56,7 @@ function viewSync() {
             return '<div class="snap"><div><strong>' + esc(c.kind) + '</strong><span>' + esc(fmtDateTime(c.at)) + ' · version ' + (c.winner === 'server' ? 'du serveur' : 'de cet appareil') + ' retenue</span></div></div>';
           }).join('') + '</div>'
         : '') +
-      '<details class="more"><summary>Arrêter la sauvegarde en ligne</summary><p class="muted">Ce téléphone ne sera plus sauvegardé. Vos données restent ici et en ligne.</p>' +
+      '<details class="more"><summary>Déconnecter ce téléphone</summary><p class="muted">Ce téléphone ne sera plus sauvegardé. Vos données restent ici et en ligne.</p>' +
         '<button type="button" class="btn danger-ghost" data-action="sync-disconnect">' + icon('x', 15) + ' Arrêter sur ce téléphone</button></details>';
   }
   return '<div class="page">' +

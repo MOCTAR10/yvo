@@ -5,7 +5,7 @@
    ============================================================ */
 
 const DB_KEY = 'yvo.epargne.db.v1';
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '3.1.0';
 const DB_SCHEMA = 2;
 const CURRENCIES = ['FCFA', '€', '$', 'MAD', 'GNF', 'CDF', 'CHF'];
 
@@ -41,7 +41,7 @@ const ROUTE_TITLES = {
   tresorerie: 'Caisse',
   plus: 'Plus',
   activite: 'Historique',
-  risques: 'Clients à relancer',
+  risques: 'À relancer',
   cloture: 'Fin de journée',
   multi: 'Plusieurs cartes',
   alertes: 'Alertes',
@@ -975,6 +975,29 @@ function clotureOf(date) {
   return db.clotures.find(function (c) { return c.date === date; }) || null;
 }
 
+/* Quartiers de Port-Gentil proposés à la saisie (Yvo peut toujours en écrire un autre). */
+const QUARTIERS_PORT_GENTIL = [
+  'Bac Aviation', 'Balise', 'Boulingui', 'Château', 'Cité Shell', 'Grand Village', 'Matanda',
+  'Mosquée', 'Ntchengué', 'Quartier Chic', 'Salsa', 'Sud-Bac'
+];
+
+/* Liste de saisie : les quartiers de Port-Gentil + ceux déjà utilisés par les clients. */
+function quartierSuggestions() {
+  const set = {};
+  QUARTIERS_PORT_GENTIL.concat(quartiersList()).forEach(function (q) { if (q && q !== 'Non classé') set[q] = true; });
+  return Object.keys(set).sort(function (a, b) { return a.localeCompare(b, 'fr'); });
+}
+
+/* « grand village » tapé à la main devient « Grand Village » : un seul nom par quartier. */
+function normalizeQuartier(q) {
+  q = String(q || '').replace(/\s+/g, ' ').trim();
+  if (!q) return 'Non classé';
+  const plain = function (s) { return s.toLocaleLowerCase('fr').normalize('NFD').replace(/\p{M}/gu, ''); };
+  const key = plain(q);
+  const hit = quartierSuggestions().find(function (x) { return plain(x) === key; });
+  return hit || q;
+}
+
 function quartiersList() {
   const set = {};
   db.clients.forEach(function (c) {
@@ -1124,11 +1147,11 @@ function buildDemoDB() {
   const d = emptyDB();
   d.settings.company = {
     nom: 'YVO Épargne',
-    responsable: 'Mamadou Diallo',
-    telephone: '+221 77 123 45 67',
-    email: 'contact@yvo-epargne.sn',
-    adresse: '12, rue de la Paix',
-    ville: 'Dakar',
+    responsable: 'Yvo',
+    telephone: '077 81 47 66',
+    email: '',
+    adresse: 'Grand Village',
+    ville: 'Port-Gentil',
     activite: 'Collecte quotidienne & épargne'
   };
   d.settings.devise = 'FCFA';
@@ -1146,7 +1169,7 @@ function buildDemoDB() {
 
   const people = [
     {
-      nom: 'Awa Ndiaye', tel: '77 412 03 88', quartier: 'Médina', adresse: 'Rue 22 × 15, Médina',
+      nom: 'Marie-Claire Mboumba', tel: '077 41 20 38', quartier: 'Grand Village', adresse: 'Près du marché du Grand Village',
       profession: 'Commerçante', pieceType: 'CNI', pieceNumero: '1 840 1992 04512', profile: 'regular',
       cartes: [
         { j: 5000, start: -28, len: 31 },
@@ -1154,13 +1177,13 @@ function buildDemoDB() {
       ]
     },
     {
-      nom: 'Moussa Diop', tel: '76 208 77 14', quartier: 'Grand Yoff', adresse: 'Cité Comico, villa 18',
+      nom: 'Jean-Pierre Moussavou', tel: '066 20 87 14', quartier: 'Balise', adresse: 'Derrière l’école de Balise',
       profession: 'Menuisier', pieceType: 'CNI', pieceNumero: '1 855 1987 02381', profile: 'regular',
       cartes: [{ j: 2000, start: -24, len: 30 }]
     },
     {
-      nom: 'Fatou Sarr', tel: '78 330 19 62', quartier: 'Parcelles Assainies', adresse: 'Unité 12, n° 45',
-      profession: 'Restauratrice', pieceType: 'Passeport', pieceNumero: 'SN 045 812 3', profile: 'regular',
+      nom: 'Prisca Nziengui', tel: '074 33 19 62', quartier: 'Matanda', adresse: 'Carrefour Matanda',
+      profession: 'Restauratrice', pieceType: 'Passeport', pieceNumero: 'GA 045 812 3', profile: 'regular',
       cartes: [
         { j: 1000, start: -31, len: 31 },
         { j: 2000, start: -20, len: 31 },
@@ -1168,17 +1191,17 @@ function buildDemoDB() {
       ]
     },
     {
-      nom: 'Ibrahima Fall', tel: '70 501 44 29', quartier: 'Ouakam', adresse: 'Rue 10, Ouakam',
-      profession: 'Chauffeur', pieceType: 'Permis', pieceNumero: 'DK-2019-77841', profile: 'regular',
+      nom: 'Ghislain Ondo', tel: '062 50 44 29', quartier: 'Ntchengué', adresse: 'Route de Ntchengué',
+      profession: 'Chauffeur', pieceType: 'Permis', pieceNumero: 'PG-2019-77841', profile: 'regular',
       cartes: [{ j: 10000, start: -5, len: 31 }]
     },
     {
-      nom: 'Aïssatou Ba', tel: '77 902 31 07', quartier: 'Médina', adresse: 'Rue 31 × 44, Médina',
+      nom: 'Sylvie Koumba', tel: '077 90 31 07', quartier: 'Grand Village', adresse: 'Rue du Grand Village',
       profession: 'Couturière', pieceType: 'CNI', pieceNumero: '1 862 1995 07730', profile: 'regular',
       cartes: [{ j: 2500, start: -19, len: 30 }]
     },
     {
-      nom: 'Cheikh Diagne', tel: '76 644 82 51', quartier: 'Yoff', adresse: 'Cité Fadia, n° 7',
+      nom: 'Cyriaque Obame', tel: '066 64 82 51', quartier: 'Bac Aviation', adresse: 'Près du rond-point Bac Aviation',
       profession: 'Mécanicien', pieceType: 'CNI', pieceNumero: '1 871 1990 09914', profile: 'regular',
       cartes: [
         { j: 3000, start: -26, len: 31 },
@@ -1186,17 +1209,17 @@ function buildDemoDB() {
       ]
     },
     {
-      nom: 'Mariama Cissé', tel: '78 118 65 40', quartier: 'Grand Yoff', adresse: 'Hlm Grand Yoff, n° 112',
+      nom: 'Jeanne Mbadinga', tel: '074 11 65 40', quartier: 'Balise', adresse: 'Cité Balise',
       profession: 'Vendeuse', pieceType: 'CNI', pieceNumero: '1 833 1988 01190', profile: 'perfect',
       cartes: [{ j: 5000, start: -42, len: 31, closed: true }]
     },
     {
-      nom: 'Ousmane Sow', tel: '70 733 09 25', quartier: 'Parcelles Assainies', adresse: 'Unité 15, n° 234',
+      nom: 'Roland Ndong', tel: '062 73 09 25', quartier: 'Matanda', adresse: 'Matanda, après la pharmacie',
       profession: 'Électricien', pieceType: 'CNI', pieceNumero: '1 810 1985 06552', profile: 'irregular',
       cartes: [{ j: 2000, start: -22, len: 31 }]
     },
     {
-      nom: 'Khady Guèye', tel: '77 225 71 39', quartier: 'Ouakam', adresse: 'Cité Asecna, n° 22',
+      nom: 'Chantal Ognane', tel: '077 22 71 39', quartier: 'Château', adresse: 'Quartier Château',
       profession: 'Infirmière', pieceType: 'CNI', pieceNumero: '1 849 1993 03318', profile: 'regular',
       cartes: [
         { j: 5000, start: -33, len: 31 },
@@ -1204,12 +1227,12 @@ function buildDemoDB() {
       ]
     },
     {
-      nom: 'Abdoulaye Ndour', tel: '76 887 20 63', quartier: 'Yoff', adresse: 'Rue 8, Yoff Layène',
+      nom: 'Patrick Mouele', tel: '066 88 20 63', quartier: 'Ntchengué', adresse: 'Débarcadère de Ntchengué',
       profession: 'Pêcheur', pieceType: 'CNI', pieceNumero: '1 822 1983 04476', profile: 'irregular',
       cartes: [{ j: 1500, start: -40, len: 31 }]
     },
     {
-      nom: 'Ndeye Faye', tel: '78 601 55 12', quartier: 'Médina', adresse: 'Rue 18, Médina',
+      nom: 'Estelle Boussougou', tel: '074 60 55 12', quartier: 'Grand Village', adresse: 'Marché du Grand Village',
       profession: 'Teinturière', pieceType: 'CNI', pieceNumero: '1 858 1991 06604', profile: 'regular',
       cartes: [{ j: 3000, start: 0, len: 31 }]
     }

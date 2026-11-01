@@ -206,8 +206,8 @@ function viewTresorerie() {
         '<span class="cash-formula">Fonds de départ ' + esc(money(db.settings.soldeInitial)) + ' + entrées − sorties</span>' +
       '</div>' +
       '<div class="cash-side">' +
-        '<div><span>Total entrées</span><strong class="in">+' + esc(money(all.entrees, true)) + '</strong></div>' +
-        '<div><span>Total sorties</span><strong class="out">−' + esc(money(all.sorties, true)) + '</strong></div>' +
+        '<div><span>Total entrées</span><strong class="in">' + (all.entrees ? '+' : '') + esc(money(all.entrees, true)) + '</strong></div>' +
+        '<div><span>Total sorties</span><strong class="out">' + (all.sorties ? '−' : '') + esc(money(all.sorties, true)) + '</strong></div>' +
         '<div><span>Solde dû aux clients</span><strong>' + esc(money(soldeDus, true)) + '</strong></div>' +
       '</div>' +
     '</section>' +
@@ -215,8 +215,8 @@ function viewTresorerie() {
       periods.map(function (p) {
         return '<article class="period-card">' +
           '<div class="pc-head"><span>' + p.label + '</span>' + icon(p.key === 'jour' ? 'clock' : p.key === 'mois' ? 'calendar' : 'database', 16) + '</div>' +
-          '<div class="pc-row"><span>Entrées</span><strong class="in">+' + esc(money(p.data.entrees, true)) + '</strong></div>' +
-          '<div class="pc-row"><span>Sorties</span><strong class="out">−' + esc(money(p.data.sorties, true)) + '</strong></div>' +
+          '<div class="pc-row"><span>Entrées</span><strong class="in">' + (p.data.entrees ? '+' : '') + esc(money(p.data.entrees, true)) + '</strong></div>' +
+          '<div class="pc-row"><span>Sorties</span><strong class="out">' + (p.data.sorties ? '−' : '') + esc(money(p.data.sorties, true)) + '</strong></div>' +
           '<div class="pc-net"><span>Net</span><strong class="' + (p.data.net >= 0 ? 'green' : 'red') + '">' + (p.data.net >= 0 ? '+' : '−') + esc(money(Math.abs(p.data.net), true)) + '</strong></div>' +
         '</article>';
       }).join('') +
@@ -250,11 +250,11 @@ function viewTresorerie() {
         '</tbody></table></div>' +
         (movements.length > 200 ? '<p class="table-note">Affichage des 200 mouvements les plus récents. Affinez la période pour voir le reste.</p>' : '') +
         '<div class="mode-split">' + PAY_MODES.map(function (k) {
-          return '<div class="mode-' + k + '"><span>' + payModeIcon(k, 18) + esc(PAY_MODE_SHORT[k]) + '</span><strong>+' + esc(money(byMode[k], true)) + '</strong></div>';
+          return '<div class="mode-' + k + '"><span>' + payModeIcon(k, 18) + esc(PAY_MODE_SHORT[k]) + '</span><strong>' + (byMode[k] > 0 ? '+' : '') + esc(money(byMode[k], true)) + '</strong></div>';
         }).join('') + '</div>' +
         '<div class="journal-foot">' +
-          '<div><span>Entrées de la période</span><strong class="in">+' + esc(money(filteredIn)) + '</strong></div>' +
-          '<div><span>Sorties de la période</span><strong class="out">−' + esc(money(filteredOut)) + '</strong></div>' +
+          '<div><span>Entrées de la période</span><strong class="in">' + (filteredIn ? '+' : '') + esc(money(filteredIn)) + '</strong></div>' +
+          '<div><span>Sorties de la période</span><strong class="out">' + (filteredOut ? '−' : '') + esc(money(filteredOut)) + '</strong></div>' +
           '<div><span>Net</span><strong class="' + (filteredIn - filteredOut >= 0 ? 'green' : 'red') + '">' + (filteredIn - filteredOut >= 0 ? '+' : '−') + esc(money(Math.abs(filteredIn - filteredOut))) + '</strong></div>' +
         '</div>'
         : '<p class="muted pad">Aucun mouvement sur cette période.</p>') +

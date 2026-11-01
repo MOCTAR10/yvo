@@ -99,17 +99,34 @@ function requireAccess(next) {
   showLock();
 }
 
+/* Clavier du téléphone ouvert : on cache la barre du bas pour garder la place. */
+document.addEventListener('focusin', function (e) {
+  if (e.target && e.target.matches && e.target.matches('input:not([type="checkbox"]):not([type="radio"]), textarea, select')) document.body.classList.add('kb-open');
+});
+document.addEventListener('focusout', function () {
+  setTimeout(function () {
+    const a = document.activeElement;
+    if (!a || !a.matches || !a.matches('input, textarea, select')) document.body.classList.remove('kb-open');
+  }, 60);
+});
+
 function buildNav() {
   const nav = document.getElementById('nav');
   const bottom = document.getElementById('bottom-nav');
   if (nav) {
     nav.innerHTML = NAV_SIDEBAR.map(function (n) {
-      return '<a class="nav-link" data-nav="' + n.id + '" href="' + n.href + '">' +
-        icon(n.icon, 19) + '<span>' + esc(n.label) + '</span>' +
+      const label = n.id === 'tresorerie'
+        ? '<span class="nav-text"><span>' + esc(n.label) + '</span><small id="nav-caisse"></small></span>'
+        : '<span>' + esc(n.label) + '</span>';
+      return (n.id === NAV_MORE[0].id ? '<div class="nav-sep">Suivi &amp; réglages</div>' : '') +
+        '<a class="nav-link" data-nav="' + n.id + '" href="' + n.href + '">' +
+        icon(n.icon, 19) + label +
         (n.id === 'pointage' ? '<span class="nav-badge" id="nav-due" hidden></span>' : '') +
       '</a>';
     }).join('');
   }
+  const ver = document.getElementById('side-version');
+  if (ver) ver.textContent = 'v' + APP_VERSION + ' · marche sans internet';
   if (bottom) {
     bottom.innerHTML = NAV.map(function (n) {
       return '<a class="bottom-link" data-nav="' + n.id + '" href="' + n.href + '">' +
@@ -199,14 +216,14 @@ function updateMobileBar(route, client) {
   const back = document.getElementById('mb-back');
   const brand = document.getElementById('mb-brand');
   if (!title || !back) return;
-  const isMore = NAV_MORE.some(function (n) { return n.id === route.name; });
+  const isMore = route.name === 'sync' || NAV_MORE.some(function (n) { return n.id === route.name; });
   const isRoot = route.name === 'tableau';
   back.hidden = !(route.name === 'client' || isMore);
   back.setAttribute('href', route.name === 'client' ? '#/clients' : '#/plus');
   if (brand) brand.hidden = !isRoot;
   if (isRoot) {
     title.textContent = db.settings.company.nom || 'YVO Épargne';
-    if (sub) sub.textContent = fmtDate(todayISO(), 'day');
+    if (sub) sub.textContent = capitalize(fmtDate(todayISO(), 'day'));
   } else if (route.name === 'client') {
     title.textContent = client ? client.nom : 'Fiche client';
     if (sub) sub.textContent = client ? (client.quartier || 'Non classé') : '';
@@ -247,12 +264,19 @@ function render() {
   }
   view.innerHTML = html;
 
-  const isMore = NAV_MORE.some(function (n) { return n.id === route.name; });
-  const activeSide = route.name === 'client' ? 'clients' : route.name;
+  const isMore = route.name === 'sync' || NAV_MORE.some(function (n) { return n.id === route.name; });
+  const activeSide = route.name === 'client' ? 'clients' : route.name === 'sync' ? 'parametres' : route.name;
   const activeBottom = route.name === 'client' ? 'clients' : (isMore ? 'plus' : route.name);
   document.querySelectorAll('.nav-link').forEach(function (el) {
     el.classList.toggle('active', el.getAttribute('data-nav') === activeSide);
   });
+  const sideNav = document.getElementById('nav');
+  const sideActive = sideNav && sideNav.querySelector('.nav-link.active');
+  if (sideActive && sideNav.clientHeight) {
+    const top = sideActive.offsetTop - sideNav.offsetTop;
+    if (top < sideNav.scrollTop) sideNav.scrollTop = top - 8;
+    else if (top + sideActive.offsetHeight > sideNav.scrollTop + sideNav.clientHeight) sideNav.scrollTop = top + sideActive.offsetHeight - sideNav.clientHeight + 8;
+  }
   document.querySelectorAll('.bottom-link').forEach(function (el) {
     el.classList.toggle('active', el.getAttribute('data-nav') === activeBottom);
   });
@@ -266,12 +290,8 @@ function render() {
     b.hidden = count === 0;
   });
 
-  const mini = document.getElementById('caisse-mini');
-  if (mini) {
-    mini.innerHTML = '<span class="cm-top"><span>Caisse</span>' + icon('wallet', 15) + '</span>' +
-      '<strong>' + esc(money(cashBalance())) + '</strong>' +
-      '<span class="cm-link">Voir la trésorerie ' + icon('chevron-right', 12) + '</span>';
-  }
+  const navCaisse = document.getElementById('nav-caisse');
+  if (navCaisse) navCaisse.textContent = money(cashBalance());
 
   updateAlertBadge();
   updateSyncPill();
@@ -321,7 +341,7 @@ function showLock() {
       '<div class="login-mark"><span>Y</span></div>' +
       '<p class="login-kicker">Espace privé</p>' +
       '<h1 class="login-hello">' + hello + ' <em>Yvo</em></h1>' +
-      '<p class="login-date">' + esc(fmtDate(todayISO(), 'long')) + '</p>' +
+      '<p class="login-date">' + esc(capitalize(fmtDate(todayISO(), 'long'))) + '</p>' +
       '<form id="form-unlock" data-form="unlock" autocomplete="off">' +
         '<label class="login-field" for="unlock-pin"><span class="sr-only">Mot de passe</span>' +
           icon('lock', 18) +
@@ -548,16 +568,6 @@ function handleAction(action, el, e) {
       break;
     }
 
-    case 'lock-forgot':
-      openConfirm({
-        title: 'Code oublié',
-        tone: 'red',
-        message: 'Le code est stocké sur cet appareil et ne peut pas être retrouvé. Pour repartir, vous pouvez effacer les données locales — elles seront perdues.',
-        extra: '<p class="muted">Si vous avez une sauvegarde JSON, vous pourrez la réimporter après avoir repris l’application à zéro.</p>',
-        action: 'confirm-erase-locked',
-        label: 'Effacer et repartir'
-      });
-      break;
 
     case 'new-client':
       openClientModal(null);
@@ -1102,7 +1112,7 @@ function handleForm(type, form, submitter) {
     const id = String(f.get('id') || '');
     const nom = String(f.get('nom') || '').trim();
     const telephone = String(f.get('telephone') || '').trim();
-    const quartier = String(f.get('quartier') || '').trim() || 'Non classé';
+    const quartier = normalizeQuartier(f.get('quartier'));
     if (!nom) return toast('Le nom du client est obligatoire.', 'error');
     if (telephone) {
       const digits = telephone.replace(/\D/g, '');
