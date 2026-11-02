@@ -380,6 +380,23 @@ test('entrée d’argent : un client qui paie est envoyé vers ses clients', asy
   expect(errors).toEqual([]);
 });
 
+test('les reçus disent « Reçu de paiement » et « Total payé »', async ({ page }) => {
+  const errors = await openApp(page);
+  const r = await page.evaluate(() => {
+    const k = dueCards(todayISO())[0];
+    payLines = [];
+    addPayment(k, todayISO(), Number(k.montantJournalier), '', 'especes', '');
+    const rec = createReceipt(k.clientId, todayISO(), payLines, 'especes', '');
+    openRecuModal(rec.id);
+    return { texte: receiptText(rec) };
+  });
+  expect(r.texte).toContain('Total payé');
+  await expect(page.locator('.modal')).toContainText('Reçu de paiement');
+  await expect(page.locator('.modal')).toContainText('Total payé');
+  await expect(page.locator('.modal')).not.toContainText(/versement|cotis/i);
+  expect(errors).toEqual([]);
+});
+
 test('compter mon argent : le résultat est dit avec des mots', async ({ page }) => {
   const errors = await openApp(page);
   await goto(page, 'cloture');

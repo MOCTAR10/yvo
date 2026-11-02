@@ -247,7 +247,7 @@ function receiptHTML(op) {
       (company.email ? '<span>' + esc(company.email) + '</span>' : '') +
       '<span>' + esc([company.adresse, company.ville].filter(Boolean).join(', ')) + '</span>' +
     '</div>' +
-    '<div class="receipt-title">' + (isPret ? 'Reçu de prêt' : isRemb ? 'Reçu de remboursement' : 'Reçu de paiement au client') + '</div>' +
+    '<div class="receipt-title">' + (isPret ? 'Reçu de prêt' : isRemb ? 'Reçu de remboursement' : 'Reçu d’argent rendu') + '</div>' +
     '<div class="receipt-grid">' +
       '<div><span>Client</span><strong>' + esc(nom) + '</strong></div>' +
       '<div><span>Téléphone</span><strong>' + esc(tel || '—') + '</strong></div>' +
@@ -260,14 +260,14 @@ function receiptHTML(op) {
       '<thead><tr><th>Désignation</th><th>Détails</th><th class="right">Montant</th></tr></thead>' +
       '<tbody>' +
         '<tr><td>' + esc(carteLabel) + '</td><td>Du ' + esc(fmtDate(snap.dateDebut, 'short')) + ' au ' + esc(fmtDate(snap.dateFin, 'short')) + '</td><td class="right">' + esc(money(totalVerse)) + '</td></tr>' +
-        '<tr><td>Total cotisé</td><td>' + esc(numberFR(snap.montantJournalier || 0)) + ' / jour</td><td class="right">' + esc(money(totalVerse)) + '</td></tr>' +
-        '<tr class="receipt-pay"><td>Paiement effectué</td><td>' + esc(op.mode || 'Espèces') + '</td><td class="right">' + esc(money(montant)) + '</td></tr>' +
-        '<tr><td>Solde restant dû</td><td>Après ce paiement</td><td class="right">' + esc(money(soldeApres)) + '</td></tr>' +
+        '<tr><td>Total payé</td><td>' + esc(numberFR(snap.montantJournalier || 0)) + ' / jour</td><td class="right">' + esc(money(totalVerse)) + '</td></tr>' +
+        '<tr class="receipt-pay"><td>Argent rendu</td><td>' + esc(op.mode || 'Espèces') + '</td><td class="right">' + esc(money(montant)) + '</td></tr>' +
+        '<tr><td>Son argent restant</td><td>Après cet argent rendu</td><td class="right">' + esc(money(soldeApres)) + '</td></tr>' +
       '</tbody>' +
     '</table>' +
-    '<div class="receipt-amount"><span>Montant payé</span><strong>' + esc(money(montant)) + '</strong></div>' +
+    '<div class="receipt-amount"><span>Argent rendu</span><strong>' + esc(money(montant)) + '</strong></div>' +
     '<p class="receipt-note">Je soussigné(e) <strong>' + esc(nom) + '</strong> reconnais avoir reçu la somme de <strong>' + esc(money(montant)) +
-      '</strong> des mains de <strong>' + esc(company.nom || 'mon collecteur') + '</strong>, au titre de la carte d’épargne <strong>' + esc(carteLabel) +
+      '</strong> des mains de <strong>' + esc(company.nom || 'mon collecteur') + '</strong>, au titre de la carte <strong>' + esc(carteLabel) +
       '</strong>. Ce document vaut accusé de réception et preuve de paiement.</p>'
     )) +
     '<div class="receipt-sign">' +
@@ -318,7 +318,7 @@ function openReceipt(opId) {
     return;
   }
   openModal({
-    title: op.categorie === 'pret' ? 'Reçu de prêt' : op.categorie === 'remboursement' ? 'Reçu de remboursement' : 'Reçu de paiement',
+    title: op.categorie === 'pret' ? 'Reçu de prêt' : op.categorie === 'remboursement' ? 'Reçu de remboursement' : 'Reçu d’argent rendu',
     subtitle: 'Accusé de réception · ' + esc(op.recuNumero || ''),
     size: 'large',
     body: receiptHTML(op) + (op.categorie === 'pret' || op.categorie === 'remboursement'

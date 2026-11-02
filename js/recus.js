@@ -67,7 +67,7 @@ function receiptText(rec) {
     'Montant reçu : ' + money(rec.total) + '\n' +
     'Payé par : ' + receiptModeLine(rec) + '\n' +
     'Date : ' + fmtDate(rec.date, 'long') + '\n' +
-    'Total cotisé : ' + money(rec.cumul) + '\n' +
+    'Total payé : ' + money(rec.cumul) + '\n' +
     (rec.retard > 0 ? 'Retard : ' + money(rec.retard) : 'Vous êtes à jour ✔') + '\n' +
     'Code de contrôle : ' + rec.code + '\n' +
     (link ? '\nVérifier ce reçu : ' + link : '') + '\n\nMerci !';
@@ -105,7 +105,7 @@ function receiptCanvas(rec) {
   const grad = g.createLinearGradient(0, 24, W, 200);
   grad.addColorStop(0, '#0e5c45'); grad.addColorStop(1, '#062a1f');
   g.save(); roundRect(g, 24, 24, W - 48, 170, 28); g.clip(); g.fillStyle = grad; g.fillRect(24, 24, W - 48, 170); g.restore();
-  g.fillStyle = '#e3c37e'; font('600', 22); g.fillText('REÇU DE VERSEMENT', 56, 74);
+  g.fillStyle = '#e3c37e'; font('600', 22); g.fillText('REÇU DE PAIEMENT', 56, 74);
   g.fillStyle = '#fff'; font('700', 38); g.fillText(clip(g, rec.entreprise || 'YVO Épargne', W - 112), 56, 128);
   g.fillStyle = '#a9cdbd'; font('400', 22); g.fillText(rec.numero, 56, 168);
   g.textAlign = 'center';
@@ -131,7 +131,7 @@ function receiptCanvas(rec) {
     g.drawImage(logo, W - 56 - g.measureText(modeText).width - 10 - lw, y - 27, lw, lh);
   }
   row('Payé par', modeText, false);
-  row('Total cotisé', money(rec.cumul), false);
+  row('Total payé', money(rec.cumul), false);
   row('Retard restant', rec.retard > 0 ? money(rec.retard) : 'À jour ✔', true);
   y += 6;
   g.fillStyle = '#e3f3ea'; roundRect(g, 56, y - 26, W - 112, 70, 16); g.fill();
@@ -181,13 +181,13 @@ function shareReceiptImage(rec) {
 function receiptCardHTML(rec) {
   const ok = receiptValid(rec);
   return '<div class="recu-card">' +
-    '<div class="recu-head"><small>Reçu de versement</small><strong>' + esc(rec.entreprise) + '</strong><em>' + esc(rec.numero) + '</em></div>' +
+    '<div class="recu-head"><small>Reçu de paiement</small><strong>' + esc(rec.entreprise) + '</strong><em>' + esc(rec.numero) + '</em></div>' +
     '<div class="recu-amount"><span>Montant reçu</span><strong>' + esc(money(rec.total)) + '</strong><span>' + esc(rec.clientNom) + (rec.quartier ? ' · ' + esc(rec.quartier) : '') + '</span></div>' +
     '<div class="recu-lines">' +
       (rec.lignes || []).map(function (l) { return '<div><span>' + esc(l.carte) + '</span><strong>' + esc(money(l.montant)) + '</strong></div>'; }).join('') +
       '<div><span>Date</span><strong>' + esc(fmtDate(rec.date, 'long')) + '</strong></div>' +
       '<div><span>Payé par</span><strong class="recu-mode">' + (rec.mode && rec.mode !== 'especes' ? payModeIcon(rec.mode, 22) : '') + esc(receiptModeLine(rec)) + '</strong></div>' +
-      '<div><span>Total cotisé</span><strong>' + esc(money(rec.cumul)) + '</strong></div>' +
+      '<div><span>Total payé</span><strong>' + esc(money(rec.cumul)) + '</strong></div>' +
       '<div><span>Retard restant</span><strong class="' + (rec.retard > 0 ? 'red' : 'green') + '">' + esc(rec.retard > 0 ? money(rec.retard) : 'À jour') + '</strong></div>' +
     '</div>' +
     '<div class="recu-code ' + (ok ? 'ok' : 'bad') + '">' + icon(ok ? 'shield' : 'alert', 18) + '<span>' + (ok ? 'Code de contrôle valide' : 'Reçu modifié : code invalide') + '</span><strong>' + esc(rec.code) + '</strong></div>' +
@@ -203,7 +203,7 @@ function openRecuModal(id) {
   const link = receiptLink(rec);
   openModal({
     cls: 'paid-sheet',
-    title: 'Reçu de versement',
+    title: 'Reçu de paiement',
     subtitle: esc(rec.numero),
     body: receiptCardHTML(rec) + (link ? '<p class="hint">Lien de vérification : <b>' + esc(link) + '</b></p>' : '<p class="hint">Avec la sauvegarde en ligne, le reçu contient un lien pour le vérifier.</p>'),
     footer:

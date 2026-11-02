@@ -193,6 +193,8 @@ test.describe('Serveur', () => {
     expect(pub.headers()['content-type']).toContain('text/html');
     const html = await pub.text();
     expect(html).toContain('Reçu authentique');
+    expect(html).toContain('Reçu de paiement');
+    expect(html).toContain('Total payé à ce jour');
     expect(html).toContain('Airtel Money');
     expect(html).toContain('/img/airtel-money.png');
     expect(html).toContain('AIR-42');

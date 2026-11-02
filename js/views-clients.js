@@ -34,7 +34,7 @@ function clientStatus(client) {
 }
 
 function clientTagHTML(client, st) {
-  if (client.actif === false) return '<span class="tag off">Ne cotise plus</span>';
+  if (client.actif === false) return '<span class="tag off">Ne paie plus</span>';
   if (st.doit > 0) return '<span class="tag late">Doit ' + esc(money(st.doit, true)) + '</span>';
   if (st.reste > 0) return '<span class="tag due">Pas encore payé</span>';
   if (st.aPayeAujourdhui) return '<span class="tag ok">✓ Payé</span>';

@@ -247,10 +247,10 @@ function receiptPage(rec, verified) {
     'table{width:100%;border-collapse:collapse;margin:0 22px;width:calc(100% - 44px)}td{padding:9px 0;border-top:1px solid #e5dfd1;font-size:14px}.r{text-align:right;font-weight:600}' +
     '.v{margin:18px 22px;padding:12px 14px;border-radius:14px;font-size:13px;line-height:1.45}.ok{background:#e3f3ea;color:#0f7656}.bad{background:#fbe9e6;color:#a63c33}' +
     '.f{padding:0 22px 22px;color:#77817a;font-size:12px;line-height:1.5}code{background:#f3f0e7;padding:2px 6px;border-radius:6px}</style></head><body><div class="c">' +
-    '<div class="h"><small>Reçu de versement</small><h1>' + esc(rec.entreprise || 'YVO Épargne') + '</h1></div>' +
+    '<div class="h"><small>Reçu de paiement</small><h1>' + esc(rec.entreprise || 'YVO Épargne') + '</h1></div>' +
     '<div class="a"><span>Montant reçu</span><strong>' + esc(Number(rec.total).toLocaleString('fr-FR')) + ' ' + esc(rec.devise || '') + '</strong><span>' + esc(rec.clientNom) + '</span></div>' +
     '<table>' + lignes +
-    '<tr><td>Total cotisé à ce jour</td><td class="r">' + esc(Number(rec.cumul).toLocaleString('fr-FR')) + '</td></tr>' +
+    '<tr><td>Total payé à ce jour</td><td class="r">' + esc(Number(rec.cumul).toLocaleString('fr-FR')) + '</td></tr>' +
     '<tr><td>Retard restant</td><td class="r">' + esc(Number(rec.retard) > 0 ? Number(rec.retard).toLocaleString('fr-FR') : 'À jour') + '</td></tr>' +
     '<tr><td>Payé par</td><td class="r">' + (rec.mode === 'airtel' || rec.mode === 'moov' ? '<img src="/img/' + rec.mode + '-money.png" alt="" height="22" style="vertical-align:middle;border-radius:4px;margin-right:6px">' : '') + esc(({ airtel: 'Airtel Money', moov: 'Moov Money' })[rec.mode] || 'Espèces') + (rec.ref ? ' · réf. ' + esc(rec.ref) : '') + '</td></tr>' +
     '<tr><td>Date</td><td class="r">' + esc(frDate(rec.date)) + '</td></tr><tr><td>N° du reçu</td><td class="r">' + esc(rec.numero) + '</td></tr></table>' +

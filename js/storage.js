@@ -300,7 +300,7 @@ function toCSV(rows) {
 }
 
 function csvClients() {
-  const rows = [['Nom', 'Téléphone', 'Quartier', 'Adresse', 'Profession', 'Pièce', 'Inscription', 'Cartes', 'Journalier', 'Total cotisé', 'Total retiré', 'Solde dû', 'Retard', 'Dernier versement', 'Statut']];
+  const rows = [['Nom', 'Téléphone', 'Quartier', 'Adresse', 'Profession', 'Pièce', 'Inscription', 'Cartes', 'Journalier', 'Total payé', 'Total retiré', 'Solde dû', 'Retard', 'Dernier versement', 'Statut']];
   db.clients.forEach(function (c) {
     const t = clientTotals(c);
     rows.push([c.nom, c.telephone, c.quartier, c.adresse, c.profession, [c.pieceType, c.pieceNumero].filter(Boolean).join(' '),

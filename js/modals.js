@@ -32,7 +32,7 @@ function openClientModal(client) {
           '</select></label>' +
           '<label class="field"><span>Numéro de pièce</span><input name="pieceNumero" value="' + esc(c.pieceNumero || '') + '"></label>' +
           '<label class="field"><span>Inscrit le</span><input name="dateInscription" type="date" value="' + esc(c.dateInscription || todayISO()) + '"></label>' +
-          '<label class="field"><span>Cotise encore ?</span><select name="actif">' +
+          '<label class="field"><span>Paie encore ?</span><select name="actif">' +
             '<option value="1"' + (c.actif !== false ? ' selected' : '') + '>Oui</option>' +
             '<option value="0"' + (c.actif === false ? ' selected' : '') + '>Non</option>' +
           '</select></label>' +
