@@ -489,7 +489,7 @@ function handleAction(action, el, e) {
           tone: 'red',
           icon: 'trash',
           message: 'Supprimer <strong>' + esc(cl ? cl.nom : 'ce client') + '</strong> ?',
-          extra: '<p class="muted">' + cards.length + ' carte(s) et ' + vs.length + ' pointage(s) (' + esc(money(sum(vs, function (v) { return v.montant; }))) + ') seront retirés, et la caisse sera recalculée.<br><strong>Rien n’est perdu :</strong> vous pourrez tout restaurer depuis la Corbeille.</p>',
+          extra: '<p class="muted">' + cards.length + ' carte(s) et ' + vs.length + ' paiement(s) (' + esc(money(sum(vs, function (v) { return v.montant; }))) + ') seront retirés de la caisse.<br><strong>Rien n’est perdu :</strong> vous pourrez tout remettre depuis la Corbeille.</p>',
           action: 'confirm-delete-client',
           data: 'data-client="' + esc(clientId) + '"',
           label: 'Mettre à la corbeille'
@@ -518,8 +518,8 @@ function handleAction(action, el, e) {
             title: 'Terminer cette carte ?',
             tone: 'red',
             icon: 'alert',
-            message: 'Ce client doit encore <strong>' + esc(money(reste)) + '</strong> sur une avance d’argent. Une fois la carte clôturée, ses cotisations ne rembourseront plus cette avance.',
-            label: 'Clôturer quand même',
+            message: 'Ce client doit encore <strong>' + esc(money(reste)) + '</strong> sur un prêt. Si la carte est terminée, ses paiements ne rembourseront plus ce prêt.',
+            label: 'Terminer quand même',
             action: 'confirm-toggle-carte',
             data: 'data-carte="' + esc(carte.id) + '"'
           });
@@ -549,7 +549,7 @@ function handleAction(action, el, e) {
             tone: 'red',
             icon: 'trash',
             message: 'Supprimer <strong>' + esc(carte.label) + '</strong> ?',
-            extra: '<p class="muted">' + nb + ' pointage(s) et les paiements liés seront retirés. Restaurable depuis la Corbeille.</p>',
+            extra: '<p class="muted">' + nb + ' paiement(s) seront retirés. Vous pourrez les remettre depuis la Corbeille.</p>',
             action: 'confirm-delete-carte',
             data: 'data-carte="' + esc(carteId) + '"',
             label: 'Mettre à la corbeille'
@@ -630,10 +630,10 @@ function handleAction(action, el, e) {
     case 'delete-day':
       if (carteId && date) {
         openConfirm({
-          title: 'Effacer ce pointage',
+          title: 'Effacer ce paiement',
           tone: 'red',
           icon: 'trash',
-          message: 'Effacer le pointage du <strong>' + esc(fmtDate(date, 'long')) + '</strong> ?',
+          message: 'Effacer le paiement du <strong>' + esc(fmtDate(date, 'long')) + '</strong> ?',
           extra: '<p class="muted">Il ira dans la Corbeille et pourra être restauré.</p>',
           action: 'confirm-delete-day',
           data: 'data-carte="' + esc(carteId) + '" data-date="' + esc(date) + '"',
@@ -648,9 +648,9 @@ function handleAction(action, el, e) {
         const carte = carteById(carteId);
         if (v) {
           const client = clientById(v.clientId);
-          trashAdd('versement', 'Pointage du ' + fmtDate(date, 'short') + ' · ' + (client ? client.nom : '') + ' · ' + money(v.montant), { versements: [v] });
+          trashAdd('versement', 'Paiement du ' + fmtDate(date, 'short') + ' · ' + (client ? client.nom : '') + ' · ' + money(v.montant), { versements: [v] });
           db.versements = db.versements.filter(function (x) { return x.id !== v.id; });
-          logActivity('suppression', 'Pointage du ' + fmtDate(date, 'short') + ' effacé (' + money(v.montant) + ')' + (carte ? ' · ' + carte.label : ''), { clientId: v.clientId, carteId: carteId, montant: v.montant });
+          logActivity('suppression', 'Paiement du ' + fmtDate(date, 'short') + ' effacé (' + money(v.montant) + ')' + (carte ? ' · ' + carte.label : ''), { clientId: v.clientId, carteId: carteId, montant: v.montant });
         }
         saveDB();
         closeModal();
@@ -664,10 +664,10 @@ function handleAction(action, el, e) {
         const op = db.operations.find(function (o) { return o.id === opId; });
         if (op) {
           openConfirm({
-            title: 'Supprimer l’opération',
+            title: 'Supprimer cette ligne',
             tone: 'red',
             icon: 'trash',
-            message: 'Supprimer <strong>' + esc(op.libelle || CAT_LABELS[op.categorie] || 'cette opération') + '</strong> de ' + esc(money(op.montant)) + ' ?',
+            message: 'Supprimer <strong>' + esc(op.libelle || CAT_LABELS[op.categorie] || 'cette ligne') + '</strong> de ' + esc(money(op.montant)) + ' ?',
             extra: '<p class="muted">' + (op.recuNumero ? 'Le reçu ' + esc(op.recuNumero) + ' sera aussi retiré. ' : '') + 'Restaurable depuis la Corbeille.</p>',
             action: 'confirm-delete-op',
             data: 'data-op="' + esc(opId) + '"',
@@ -681,14 +681,14 @@ function handleAction(action, el, e) {
       if (opId) {
         const op = db.operations.find(function (o) { return o.id === opId; });
         if (op) {
-          trashAdd('operation', (op.libelle || 'Opération') + ' · ' + money(op.montant), { operations: [op] });
+          trashAdd('operation', (op.libelle || 'Argent') + ' · ' + money(op.montant), { operations: [op] });
           db.operations = db.operations.filter(function (o) { return o.id !== opId; });
           logActivity('suppression', 'Opération supprimée : ' + (op.libelle || CAT_LABELS[op.categorie]) + ' (' + money(op.montant) + ')', { clientId: op.clientId, montant: op.montant });
         }
         saveDB();
         closeModal();
         rerender();
-        toast('Opération mise à la corbeille.', 'info');
+        toast('C’est dans la Corbeille.', 'info');
       }
       break;
 
@@ -1082,7 +1082,7 @@ function handleForm(type, form, submitter) {
     const dispo = retraitDispo(carte);
     if (montant > dispo) {
       return toast(dispo < tot.solde
-        ? 'Une avance d’argent n’est pas encore remboursée sur une autre carte (' + money(tot.solde - dispo) + ' retenus) : vous pouvez payer au plus ' + money(dispo) + '.'
+        ? 'Un prêt n’est pas encore remboursé sur une autre carte (' + money(tot.solde - dispo) + ' gardés) : vous pouvez rendre au plus ' + money(dispo) + '.'
         : 'C’est plus que son argent : ' + money(dispo) + '.', 'error');
     }
     if (montant > cashBalance()) return toast('Pas assez d’argent : il y a ' + money(cashBalance()) + ' en caisse. Ajoutez une entrée de caisse avant ce paiement.', 'error');

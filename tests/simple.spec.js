@@ -201,7 +201,9 @@ test('aucun mot compliqué dans les formulaires d’argent', async ({ page }) =>
   const ouvertures = [
     i => openPretModal(i),
     () => openOperationModal('entree'),
-    () => openOperationModal('sortie')
+    () => openOperationModal('sortie'),
+    i => openRetraitModal({ clientId: db.clients.find(c => clientTotals(c).solde > 0).id }),
+    i => { const k = dueCards(todayISO()).find(c => c.clientId === i); openDayModal(k.id, todayISO()); }
   ];
   for (const ouvrir of ouvertures) {
     await page.evaluate(ouvrir, id);

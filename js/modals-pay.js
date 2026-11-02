@@ -141,7 +141,7 @@ function openDayInfo(carte, date, kind) {
 function openDayModal(carteId, date) {
   const carte = carteById(carteId);
   if (!carte) return;
-  if (date > todayISO()) { toast('Ce jour n’est pas encore arrivé : on pointe le jour même.', 'info'); return; }
+  if (date > todayISO()) { toast('Ce jour n’est pas encore arrivé.', 'info'); return; }
   const client = clientById(carte.clientId);
   const v = versementFor(carteId, date);
   const daily = Number(carte.montantJournalier) || 0;
@@ -162,33 +162,19 @@ function openDayModal(carteId, date) {
       '<form id="form-day" data-form="save-day" autocomplete="off">' +
         '<input type="hidden" name="carteId" value="' + esc(carteId) + '">' +
         '<input type="hidden" name="date" value="' + esc(date) + '">' +
-        (!inPeriod ? '<div class="callout warn small">' + icon('alert', 16) + '<div><strong>Hors période</strong><span>Cette date est en dehors de la période de la carte.</span></div></div>' : '') +
-        '<label class="field big-field"><span>Total versé ce jour</span><div class="input-suffix"><input id="day-montant" name="montant" type="number" inputmode="numeric" min="0" step="1" value="' + (v ? current : '') + '" placeholder="0" data-autofocus><span>' + esc(db.settings.devise) + '</span></div></label>' +
-        '<div class="status-preview" id="day-preview"></div>' +
+        (!inPeriod ? '<div class="callout warn small">' + icon('alert', 16) + '<div><strong>En dehors de la carte</strong><span>Ce jour est avant le début ou après la fin de la carte.</span></div></div>' : '') +
+        '<label class="field big-field"><span>Combien j’ai reçu ce jour-là ?</span><div class="input-suffix"><input id="day-montant" name="montant" type="number" inputmode="numeric" min="0" step="1" value="' + (v ? current : '') + '" placeholder="0" data-autofocus><span>' + esc(db.settings.devise) + '</span></div></label>' +
         '<div class="pay-chips">' +
-          '<button type="button" class="chip" data-action="pay-fill" data-target="day-montant" data-value="' + daily + '">Complet <span>' + esc(money(daily, true)) + '</span></button>' +
-          '<button type="button" class="chip" data-action="pay-fill" data-target="day-montant" data-value="' + (daily * 2) + '">×2 <span>' + esc(money(daily * 2, true)) + '</span></button>' +
-          '<button type="button" class="chip" data-action="pay-fill" data-target="day-montant" data-value="0">Non versé <span>0</span></button>' +
+          '<button type="button" class="chip" data-action="pay-fill" data-target="day-montant" data-value="' + daily + '">Tout <span>' + esc(money(daily, true)) + '</span></button>' +
+          '<button type="button" class="chip" data-action="pay-fill" data-target="day-montant" data-value="' + (daily * 2) + '">Le double <span>' + esc(money(daily * 2, true)) + '</span></button>' +
+          '<button type="button" class="chip" data-action="pay-fill" data-target="day-montant" data-value="0">Rien <span>0</span></button>' +
         '</div>' +
         payModePicker(lastPayMode(v), false) +
         '<label class="field"><span>Note (facultatif)</span><input name="note" value="' + esc(v ? (v.note || '') : '') + '" placeholder="Ex. paiera demain"></label>' +
         hist +
-        '<p class="hint">Écrivez le bon total pour ce jour.</p>' +
       '</form>',
     footer:
       (v ? '<button type="button" class="btn danger-ghost" data-action="delete-day" data-carte="' + esc(carteId) + '" data-date="' + esc(date) + '">' + icon('trash', 15) + ' Effacer</button>' : '') +
-      '<button type="submit" form="form-day" class="btn primary lg">' + icon('check', 17) + ' Enregistrer</button>',
-    onMount: function () {
-      const input = document.getElementById('day-montant');
-      const prev = document.getElementById('day-preview');
-      if (!input || !prev) return;
-      const update = function () {
-        if (input.value === '') { prev.innerHTML = '<span class="muted">Saisissez le montant reçu</span>'; return; }
-        prev.innerHTML = 'Sera enregistré comme : ' + statutBadge(statutFor(parseMoney(input.value), daily));
-      };
-      input.addEventListener('input', update);
-      input.addEventListener('change', update);
-      update();
-    }
+      '<button type="submit" form="form-day" class="btn primary lg">' + icon('check', 17) + ' Enregistrer</button>'
   });
 }

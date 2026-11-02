@@ -134,7 +134,7 @@ function openCarteModal(clientId, carte, autreMontant) {
 
 function retraitCardOptions(clientId, selectedId) {
   const cards = cardsWithSolde(clientId);
-  if (!cards.length) return '<option value="">Aucune carte avec un solde dû</option>';
+  if (!cards.length) return '<option value="">Pas d’argent à reprendre</option>';
   return cards.map(function (x) {
     const isSel = selectedId ? x.carte.id === selectedId : false;
     return '<option value="' + esc(x.carte.id) + '"' + (isSel ? ' selected' : '') + '>' +

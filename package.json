@@ -1,6 +1,6 @@
 {
   "name": "yvo-epargne",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "private": true,
   "description": "YVO Épargne — application hors ligne + serveur de synchronisation",
   "engines": {

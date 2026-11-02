@@ -5,7 +5,7 @@
    ============================================================ */
 
 const DB_KEY = 'yvo.epargne.db.v1';
-const APP_VERSION = '4.0.0';
+const APP_VERSION = '4.0.1';
 const DB_SCHEMA = 2;
 const CURRENCIES = ['FCFA', '€', '$', 'MAD', 'GNF', 'CDF', 'CHF'];
 
@@ -45,9 +45,9 @@ const DAYS_NARROW = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
 const STATUT_LABELS = {
   complet: 'Complet',
-  partiel: 'Partiel',
+  partiel: 'Pas tout',
   avance: 'En avance',
-  absent: 'Non versé'
+  absent: 'Pas payé'
 };
 
 const STATUT_TONES = { complet: 'green', partiel: 'amber', avance: 'blue', absent: 'red' };
