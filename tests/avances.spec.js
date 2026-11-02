@@ -19,6 +19,7 @@ test.describe('Avance d’argent', () => {
     const montant = before.solde + 20000;
     await page.evaluate(c => openPretModal(c.clientId, c.id), carte);
     await page.fill('#pret-montant', String(montant));
+    await page.click('#form-pret .form-more summary');
     await page.fill('#pret-frais', '10');
     await page.selectOption('#pret-frais-type', 'pct');
     await expect(page.locator('#pret-preview .total')).toContainText('rembourser');
@@ -77,38 +78,18 @@ test.describe('Avance d’argent', () => {
     await expect(page.locator('.toast').last()).toContainText('Caisse insuffisante');
     expect(await page.evaluate(() => db.operations.filter(o => o.categorie === 'pret').length)).toBe(0);
   });
-
-  test('la Caisse filtre les avances et le statut « En avance » reste distinct', async ({ page }) => {
-    await page.evaluate(id => { const c = carteById(id); db.operations.push({ id: 'op_pret_t', type: 'sortie', categorie: 'pret', libelle: 'Avance d’argent · test', montant: 1000, frais: 0, carteId: id, clientId: c.clientId, date: todayISO(), mode: 'Espèces' }); saveDB(); state.treasuryPeriod = 'jour'; location.hash = '#/tresorerie'; }, carte.id);
-    await page.selectOption('#treasury-type', 'prets');
-    await expect(page.locator('.journal-foot strong.out')).toContainText('1 000');
-    expect(await page.evaluate(() => STATUT_LABELS.avance)).toBe('En avance');
-  });
-
-  test('les frais d’avance comptent dans les Commissions (même sans barème)', async ({ page }) => {
-    await page.evaluate(id => {
-      const c = carteById(id);
-      db.settings.commission.actif = false;
-      db.operations.push({ id: 'op_pret_f', type: 'sortie', categorie: 'pret', libelle: 'Avance d’argent · test', montant: 20000, frais: 2000, carteId: id, clientId: c.clientId, date: todayISO(), mode: 'Espèces' });
-      saveDB(); state.commPeriod = 'mois'; location.hash = '#/commission';
-    }, carte.id);
-    const tot = await page.evaluate(() => commissionTotals());
-    expect(tot.frais).toBe(2000);
-    expect(tot.events.find(e => e.type === 'frais')).toMatchObject({ montant: 2000, statut: 'acquise' });
-    await expect(page.locator('.mini-kpi', { hasText: 'Frais d’avances' })).toContainText('2 000');
-    await expect(page.locator('.feed-item', { hasText: 'Frais d’avance d’argent' })).toBeVisible();
-  });
 });
 
-test('fiche client : bouton « Avance d’argent » sur la carte et reste à rembourser affiché', async ({ page }) => {
+test('page du client : « Prêter de l’argent » dans le bouton +, et ce qu’il doit rembourser est affiché', async ({ page }) => {
   const errors = await openApp(page);
-  const c = await page.evaluate(() => db.cartes.find(x => x.statut === 'active'));
+  const c = await page.evaluate(() => db.cartes.find(x => x.statut === 'active' && cartesOf(x.clientId).length === 1));
   await page.evaluate(id => { location.hash = '#/client/' + id; }, c.clientId);
-  await page.locator('#carte-' + c.id + ' [data-action="new-pret"]').click();
+  await page.click('.fab');
+  await page.locator('.fab-item', { hasText: 'Prêter de l’argent' }).click();
   await expect(page.locator('#form-pret')).toBeVisible();
   const solde = await page.evaluate(id => cardTotals(carteById(id)).solde, c.id);
   await page.fill('#pret-montant', String(solde + 3000));
   await page.click('button[form="form-pret"]');
-  await expect(page.locator('#carte-' + c.id + ' .fc-pret')).toContainText('3 000');
+  await expect(page.locator('.simple-status')).toContainText('Doit rembourser 3 000');
   expect(errors).toEqual([]);
 });

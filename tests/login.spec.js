@@ -59,7 +59,7 @@ test('le bouton œil affiche le mot de passe', async ({ page }) => {
 test('« Verrouiller » ramène à la connexion, même après rechargement', async ({ page }) => {
   await login(page);
   await page.evaluate(() => { location.hash = '#/parametres'; });
-  await expect(page.getByRole('heading', { name: 'Accès réservé à Yvo' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Fermer l’application' })).toBeVisible();
   await page.locator('.setting-card [data-action="lock-now"]').click();
   await expect(page.locator('.login-card')).toBeVisible();
   await expect(page.locator('#app')).toBeHidden();
@@ -125,6 +125,5 @@ test('Réglages : profil de Yvo, plus de sauvegarde à gérer', async ({ page })
   await expect(page.locator('input[name="responsable"]')).toHaveValue('Yvo');
   await expect(page.locator('input[name="telephone"]')).toHaveValue('077814766');
   await expect(page.locator('[data-action="share-backup"], #import-file, [data-action="export-data"]')).toHaveCount(0);
-  await page.evaluate(() => { location.hash = '#/plus'; });
   await expect(page.locator('a[href="#/sync"]')).toHaveCount(0);
 });

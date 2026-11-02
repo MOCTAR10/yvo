@@ -5,48 +5,23 @@
    ============================================================ */
 
 const DB_KEY = 'yvo.epargne.db.v1';
-const APP_VERSION = '3.1.2';
+const APP_VERSION = '4.0.0';
 const DB_SCHEMA = 2;
 const CURRENCIES = ['FCFA', '€', '$', 'MAD', 'GNF', 'CDF', 'CHF'];
 
-/* Barre du bas (téléphone) : 5 entrées maximum */
+/* Deux entrées, c'est tout. */
 const NAV = [
-  { id: 'tableau', label: 'Tableau de bord', short: 'Accueil', icon: 'home', href: '#/tableau' },
-  { id: 'pointage', label: 'Pointage du jour', short: 'Pointage', icon: 'check-square', href: '#/pointage' },
   { id: 'clients', label: 'Clients', short: 'Clients', icon: 'users', href: '#/clients' },
-  { id: 'tresorerie', label: 'Caisse', short: 'Caisse', icon: 'wallet', href: '#/tresorerie' },
-  { id: 'plus', label: 'Plus', short: 'Plus', icon: 'menu', href: '#/plus' }
+  { id: 'tresorerie', label: 'Caisse', short: 'Caisse', icon: 'wallet', href: '#/tresorerie' }
 ];
-
-/* Pages secondaires : menu « Plus » et barre latérale (ordinateur) */
-const NAV_MORE = [
-  { id: 'alertes', label: 'Alertes', desc: 'Incohérences et problèmes détectés', icon: 'bell', href: '#/alertes' },
-  { id: 'activite', label: 'Historique', desc: 'Tout ce qui a été fait, avec filtres', icon: 'activity', href: '#/activite' },
-  { id: 'risques', label: 'Clients à relancer', desc: 'Qui est en retard et combien', icon: 'shield-alert', href: '#/risques' },
-  { id: 'cloture', label: 'Fin de journée', desc: 'Compter l’argent et vérifier', icon: 'lock', href: '#/cloture' },
-  { id: 'recus', label: 'Reçus', desc: 'Les reçus envoyés aux clients', icon: 'receipt', href: '#/recus' },
-  { id: 'commission', label: 'Commissions', desc: 'Ce que vous prélevez sur l’épargne', icon: 'coins', href: '#/commission' },
-  { id: 'multi', label: 'Plusieurs cartes', desc: 'Clients qui ont plus d’une carte', icon: 'layers', href: '#/multi' },
-  { id: 'corbeille', label: 'Corbeille', desc: 'Récupérer ce qui a été supprimé', icon: 'trash', href: '#/corbeille' },
-  { id: 'parametres', label: 'Réglages', desc: 'Mon profil, ma caisse, types de carte', icon: 'settings', href: '#/parametres' }
-];
-
-const NAV_SIDEBAR = NAV.filter(function (n) { return n.id !== 'plus'; }).concat(NAV_MORE);
 
 const ROUTE_TITLES = {
-  tableau: 'Accueil',
-  pointage: 'Pointage',
   clients: 'Clients',
-  client: 'Fiche client',
+  client: 'Client',
   tresorerie: 'Caisse',
-  plus: 'Plus',
-  activite: 'Historique',
-  risques: 'À relancer',
-  cloture: 'Fin de journée',
-  multi: 'Plusieurs cartes',
-  alertes: 'Alertes',
-  recus: 'Reçus',
-  commission: 'Commissions',
+  risques: 'Clients à appeler',
+  cloture: 'Compter mon argent',
+  alertes: 'Problèmes à vérifier',
   sync: 'Sauvegarde en ligne',
   corbeille: 'Corbeille',
   parametres: 'Réglages'
@@ -185,22 +160,9 @@ const state = {
   clientStatut: 'tous',
   clientEtat: 'tous',
   clientSort: 'nom',
-  pointageDate: todayISO(),
-  pointageQuartier: 'tous',
-  pointageSearch: '',
-  pointageTab: 'a-pointer',
-  multiFilter: 'sans-retrait',
-  multiSearch: '',
-  treasuryPeriod: 'mois',
-  treasuryType: 'tout',
-  treasuryMode: 'tous',
-  actPeriod: '7j',
-  actKind: 'tous',
-  commPeriod: 'mois',
-  recuSearch: '',
-  actClient: 'tous',
-  actQuartier: 'tous',
-  actSearch: '',
+  clientCard: {},
+  clientOpen: {},
+  caisseDate: null,
   cal: {},
   lastActivity: Date.now()
 };
@@ -235,7 +197,6 @@ function emptyDB() {
       indicatif: YVO_PROFILE.indicatif,
       soldeInitial: 0,
       seuilRisque: 3,
-      commission: { actif: false, baremes: [] },
       pinHash: null,
       autoLock: 0,
       lastBackup: null,
@@ -263,8 +224,6 @@ function normalizeDB(raw) {
     out[k] = Array.isArray(raw[k]) ? raw[k] : [];
   });
   out.seq = Object.assign({}, base.seq, raw.seq || {});
-  out.settings.commission = Object.assign({ actif: false, baremes: [] }, out.settings.commission || {});
-  if (!Array.isArray(out.settings.commission.baremes)) out.settings.commission.baremes = [];
   const co = out.settings.company;
   if (!co.nom || co.nom === 'Mon entreprise') co.nom = YVO_PROFILE.nom;
   if (!co.responsable) co.responsable = YVO_PROFILE.responsable;
@@ -653,137 +612,6 @@ function dueCards(date) {
   });
 }
 
-/* ------------------------------------------------------------
-   Commission — entièrement paramétrable (aucun taux en dur)
-
-   Un « barème » est une liste de règles. Chaque carte garde une copie
-   du barème choisi à sa création : modifier un barème ne change donc
-   jamais le passé, sauf si Yvo l'applique explicitement.
-
-   Règle = { mode, calc, valeur, cycleJours, moment, actif }
-     mode  : 'versement' (sur chaque versement)
-             'cycle'     (sur une période de N jours, ex. 31)
-             'fin'       (à la clôture de la carte)
-     calc  : 'pct' (pourcentage) | 'fixe' (montant) | 'jours' (N jours de cotisation)
-     moment: 'debut' | 'fin' — pour les règles de cycle à montant fixe / jours
-   ------------------------------------------------------------ */
-
-const COMM_MODES = { versement: 'Sur chaque versement', cycle: 'Sur une période (cycle)', fin: 'À la clôture de la carte' };
-const COMM_CALCS = { pct: 'Pourcentage (%)', fixe: 'Montant fixe', jours: 'Jours de cotisation' };
-
-function commissionActive() {
-  return !!(db && db.settings.commission && db.settings.commission.actif);
-}
-
-function commissionRuleLabel(r, devise) {
-  const dev = devise || (db && db.settings.devise) || '';
-  const v = Number(r.valeur) || 0;
-  const what = r.calc === 'pct' ? v + ' %' : r.calc === 'jours' ? v + ' jour' + (v > 1 ? 's' : '') + ' de cotisation' : numberFR(v) + ' ' + dev;
-  if (r.mode === 'versement') return what + (r.calc === 'pct' ? ' de chaque versement' : ' par versement');
-  if (r.mode === 'cycle') return what + ' tous les ' + (Number(r.cycleJours) || 31) + ' jours' + (r.calc !== 'pct' ? (r.moment === 'debut' ? ' (prélevé au début)' : ' (prélevé en fin de période)') : '');
-  return what + ' à la clôture';
-}
-
-/* Calcul pur : fonctionne pour une vraie carte comme pour une simulation. */
-function computeCommission(carte, vs, today, force) {
-  const out = { total: 0, lignes: [] };
-  const com = carte && carte.commission;
-  if (!com || !Array.isArray(com.regles) || (!force && !commissionActive())) return out;
-  const daily = Number(carte.montantJournalier) || 0;
-  const totalVerse = sum(vs, function (v) { return v.montant; });
-  com.regles.forEach(function (r, idx) {
-    if (r.actif === false) return;
-    const val = Number(r.valeur) || 0;
-    if (val <= 0) return;
-    const lib = r.libelle || commissionRuleLabel(r);
-    if (r.mode === 'versement') {
-      let m = 0;
-      let last = null;
-      vs.forEach(function (v) {
-        const amount = Number(v.montant) || 0;
-        if (amount <= 0) return;
-        m += r.calc === 'pct' ? amount * val / 100 : r.calc === 'fixe' ? val : 0;
-        last = v.date;
-      });
-      m = Math.round(m);
-      if (m > 0) out.lignes.push({ regle: idx, libelle: lib, montant: m, statut: 'acquise', date: last || carte.dateDebut });
-    } else if (r.mode === 'cycle') {
-      const P = Math.max(1, Math.round(Number(r.cycleJours) || 31));
-      const nb = Math.ceil(periodDays(carte.dateDebut, carte.dateFin) / P);
-      for (let k = 0; k < nb; k += 1) {
-        const start = addDays(carte.dateDebut, k * P);
-        if (start > today) break;
-        let end = addDays(start, P - 1);
-        if (end > carte.dateFin) end = carte.dateFin;
-        const done = end <= today || carte.statut === 'cloturee';
-        let m = 0;
-        if (r.calc === 'pct') {
-          m = sum(vs.filter(function (v) { return v.date >= start && v.date <= end; }), function (v) { return v.montant; }) * val / 100;
-        } else {
-          if (r.moment === 'debut' || done) m = r.calc === 'jours' ? val * daily : val;
-        }
-        m = Math.round(m);
-        if (m > 0) out.lignes.push({ regle: idx, libelle: lib + ' · période ' + (k + 1), montant: m, statut: done ? 'acquise' : 'estimee', date: r.calc !== 'pct' && r.moment === 'debut' ? start : end });
-      }
-    } else if (r.mode === 'fin') {
-      const m = Math.round(r.calc === 'pct' ? totalVerse * val / 100 : r.calc === 'jours' ? val * daily : val);
-      if (m > 0 && totalVerse > 0) out.lignes.push({ regle: idx, libelle: lib, montant: m, statut: carte.statut === 'cloturee' ? 'acquise' : 'estimee', date: carte.clotureeAt || carte.dateFin });
-    }
-  });
-  let total = sum(out.lignes, function (l) { return l.montant; });
-  if (total > totalVerse) {
-    // la commission ne peut jamais dépasser ce que le client a réellement versé
-    let over = total - totalVerse;
-    for (let i = out.lignes.length - 1; i >= 0 && over > 0; i -= 1) {
-      const cut = Math.min(out.lignes[i].montant, over);
-      out.lignes[i].montant -= cut;
-      over -= cut;
-    }
-    out.lignes = out.lignes.filter(function (l) { return l.montant > 0; });
-    total = totalVerse;
-  }
-  out.total = total;
-  return out;
-}
-
-function cardCommission(carte) {
-  return computeCommission(carte, versementsOf(carte.id), todayISO());
-}
-
-function commissionTotals() {
-  let acquise = 0;
-  let estimee = 0;
-  const events = [];
-  db.cartes.forEach(function (c) {
-    const client = clientById(c.clientId);
-    cardCommission(c).lignes.forEach(function (l) {
-      if (l.statut === 'acquise') acquise += l.montant; else estimee += l.montant;
-      events.push({ date: l.date, montant: l.montant, statut: l.statut, libelle: l.libelle, carteId: c.id, carteLabel: c.label, clientId: c.clientId, clientNom: client ? client.nom : '—' });
-    });
-  });
-  /* Frais d'avance d'argent : gagnés par Yvo dès que l'avance est donnée. */
-  let frais = 0;
-  db.operations.forEach(function (o) {
-    if (o.categorie !== 'pret' || !(Number(o.frais) > 0)) return;
-    const client = clientById(o.clientId);
-    const carte = db.cartes.find(function (c) { return c.id === o.carteId; });
-    frais += Number(o.frais);
-    events.push({ date: o.date, montant: Number(o.frais), statut: 'acquise', type: 'frais', libelle: 'Frais d’avance d’argent', carteId: o.carteId, carteLabel: carte ? carte.label : ((o.snapshot && o.snapshot.carteLabel) || '—'), clientId: o.clientId, clientNom: client ? client.nom : ((o.snapshot && o.snapshot.clientNom) || '—') });
-  });
-  acquise += frais;
-  return { acquise: acquise, estimee: estimee, frais: frais, total: acquise + estimee, events:events.sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); }) };
-}
-
-function defaultBareme() {
-  const c = db.settings.commission;
-  if (!c || !c.actif) return null;
-  return c.baremes.find(function (b) { return b.parDefaut; }) || null;
-}
-
-function baremeSnapshot(b) {
-  return b ? { baremeId: b.id, nom: b.nom, regles: JSON.parse(JSON.stringify(b.regles)) } : null;
-}
-
 function cardTotals(carte) {
   if (!carte) return null;
   const vs = versementsOf(carte.id);
@@ -802,8 +630,7 @@ function cardTotals(carte) {
   const jours = periodDays(carte.dateDebut, carte.dateFin);
   const objectif = jours * (Number(carte.montantJournalier) || 0);
   const manquant = Math.max(0, objectif - totalVerse);
-  const comm = computeCommission(carte, vs, todayISO());
-  const soldeBrut = totalVerse - comm.total - totalRetire - totalPret - fraisPret;
+  const soldeBrut = totalVerse - totalRetire - totalPret - fraisPret;
   const solde = Math.max(0, soldeBrut);
   const today = todayISO();
   const ecoules = clamp(diffDays(carte.dateDebut, today) + 1, 0, jours);
@@ -830,8 +657,6 @@ function cardTotals(carte) {
     fraisPret: fraisPret,
     soldeBrut: soldeBrut,
     resteARembourser: Math.max(0, -soldeBrut),
-    commission: comm.total,
-    commissionLignes: comm.lignes,
     progression: objectif > 0 ? Math.min(100, (totalVerse / objectif) * 100) : 0,
     joursComplets: joursComplets,
     joursAvances: joursAvances,
@@ -857,7 +682,6 @@ function clientTotals(client) {
     return o.type === 'sortie' && o.categorie === 'retrait' && o.clientId === client.id;
   });
   const totalRetire = sum(retraits, function (o) { return o.montant; });
-  const commission = sum(totals, function (t) { return t.commission; });
   const totalPret = sum(totals, function (t) { return t.totalPret; });
   const fraisPret = sum(totals, function (t) { return t.fraisPret; });
   /* Position nette : une avance sur une carte se compense avec l'épargne des autres cartes. */
@@ -882,7 +706,6 @@ function clientTotals(client) {
     totalPret: totalPret,
     fraisPret: fraisPret,
     resteARembourser: resteARembourser,
-    commission: commission,
     journalier: journalier,
     progression: objectif > 0 ? Math.min(100, (totalVerse / objectif) * 100) : 0,
     retard: retard,
@@ -892,24 +715,64 @@ function clientTotals(client) {
   };
 }
 
-/* Jours sans versement mais couverts par une avance (le client a payé d'avance). */
+/* Jours couverts par de l'argent reçu en plus : ce surplus paie d'abord les jours
+   manqués les plus anciens, puis ceux qui viennent. Ce qui reste à couvrir à la fin
+   est exactement le retard de la carte. */
 function coverageMap(carte) {
   const map = {};
   const j = Number(carte.montantJournalier) || 0;
+  if (j <= 0) return map;
   const today = todayISO();
   const last = carte.dateFin < today ? carte.dateFin : today;
   const byDate = {};
   versementsOf(carte.id).forEach(function (v) { byDate[v.date] = v; });
+  const waiting = [];
   let credit = 0;
   let d = carte.dateDebut;
-  for (let n = 0; d <= last && n < 1500; n += 1) {
+  for (let n = 0; d <= last && n < 3700; n += 1) {
     const v = byDate[d];
     const paid = v ? (Number(v.montant) || 0) : 0;
-    credit += paid - j;
-    if (paid <= 0 && credit >= 0) map[d] = 'covered';
+    if (paid >= j) {
+      credit += paid - j;
+    } else {
+      const need = j - paid;
+      const use = Math.min(credit, need);
+      credit -= use;
+      if (use === need) map[d] = 'covered';
+      else waiting.push({ date: d, need: need - use });
+    }
+    while (credit > 0 && waiting.length) {
+      const w = waiting[0];
+      const use = Math.min(credit, w.need);
+      w.need -= use;
+      credit -= use;
+      if (w.need === 0) { map[w.date] = 'covered'; waiting.shift(); }
+    }
     d = addDays(d, 1);
   }
   return map;
+}
+
+/* Un versement découpé selon le jour où l'argent a vraiment été reçu.
+   Ce qui n'a pas de date de réception compte pour le jour du versement. */
+function versementReceipts(v) {
+  const groups = {};
+  const add = function (date, h, montant) {
+    const g = groups[date] = groups[date] || { date: date, montant: 0, modes: { especes: 0, airtel: 0, moov: 0 }, at: '' };
+    g.montant += montant;
+    g.modes[h ? payModeOf(h) : 'especes'] += montant;
+    if (h && h.at && String(h.at) > g.at) g.at = String(h.at);
+  };
+  let seen = 0;
+  (v.historique || []).forEach(function (h) {
+    const m = Number(h.montant) || 0;
+    const at = h.at ? new Date(h.at) : null;
+    seen += m;
+    add(at && !isNaN(at.getTime()) ? isoOf(at) : v.date, h, m);
+  });
+  const rest = (Number(v.montant) || 0) - seen;
+  if (rest !== 0) add(v.date, null, rest);
+  return Object.keys(groups).map(function (k) { return groups[k]; });
 }
 
 /* Niveau de risque d'un client : retard + nombre de jours sans verser. */
@@ -1007,6 +870,22 @@ function quartiersList() {
   return Object.keys(set).sort(function (a, b) { return a.localeCompare(b, 'fr'); });
 }
 
+/* Clients qui devaient payer ce jour, et ce qu'ils ont donné. */
+function pointageEntries(date) {
+  const map = {};
+  dueCards(date).forEach(function (c) {
+    (map[c.clientId] = map[c.clientId] || []).push(c);
+  });
+  return Object.keys(map).map(function (id) {
+    const cards = map[id];
+    return {
+      client: clientById(id),
+      cards: cards,
+      touched: cards.some(function (c) { return versementFor(c.id, date); })
+    };
+  });
+}
+
 function clientFullName(client) {
   return client ? (client.nom || 'Client sans nom') : 'Client supprimé';
 }
@@ -1017,28 +896,30 @@ function movementList() {
     if (!v.montant) return;
     const c = clientById(v.clientId);
     const carte = carteById(v.carteId);
-    const modes = versementModes(v);
-    const mk = mainMode(modes);
-    list.push({
-      id: v.id,
-      kind: 'versement',
-      type: 'entree',
-      categorie: 'versement',
-      date: v.date,
-      montant: v.montant || 0,
-      libelle: v.statut === 'avance' ? 'Versement (avance)' : v.statut === 'partiel' ? 'Versement partiel' : v.statut === 'absent' ? 'Jour non versé' : 'Versement du jour',
-      clientId: v.clientId,
-      carteId: v.carteId,
-      clientNom: c ? clientFullName(c) : 'Client supprimé',
-      carteLabel: carte ? carte.label : '',
-      statut: v.statut,
-      note: v.note || '',
-      modes: modes,
-      modeKey: mk,
-      mode: mk === 'mixte'
-        ? PAY_MODES.filter(function (k) { return modes[k] > 0; }).map(function (k) { return PAY_MODE_SHORT[k] + ' ' + money(modes[k], true); }).join(' + ')
-        : PAY_MODE_LABELS[mk],
-      createdAt: v.updatedAt || v.createdAt || v.date
+    versementReceipts(v).forEach(function (r) {
+      if (!r.montant) return;
+      const mk = mainMode(r.modes);
+      list.push({
+        id: v.id,
+        kind: 'versement',
+        type: r.montant > 0 ? 'entree' : 'sortie',
+        categorie: 'versement',
+        date: r.date,
+        montant: Math.abs(r.montant),
+        libelle: 'Paiement',
+        clientId: v.clientId,
+        carteId: v.carteId,
+        clientNom: c ? clientFullName(c) : 'Client supprimé',
+        carteLabel: carte ? carte.label : '',
+        statut: v.statut,
+        note: v.note || '',
+        modes: r.modes,
+        modeKey: mk,
+        mode: mk === 'mixte'
+          ? PAY_MODES.filter(function (k) { return r.modes[k] > 0; }).map(function (k) { return PAY_MODE_SHORT[k] + ' ' + money(r.modes[k], true); }).join(' + ')
+          : PAY_MODE_LABELS[mk],
+        createdAt: r.at || v.updatedAt || v.createdAt || v.date
+      });
     });
   });
   db.operations.forEach(function (o) {
@@ -1079,7 +960,9 @@ function cashTotals(from, to) {
   let entrees = 0;
   let sorties = 0;
   db.versements.forEach(function (v) {
-    if (inRange(v.date, from, to)) entrees += Number(v.montant) || 0;
+    versementReceipts(v).forEach(function (r) {
+      if (inRange(r.date, from, to)) entrees += r.montant;
+    });
   });
   db.operations.forEach(function (o) {
     if (!inRange(o.date, from, to)) return;
@@ -1089,29 +972,29 @@ function cashTotals(from, to) {
   return { entrees: entrees, sorties: sorties, net: entrees - sorties };
 }
 
+/* Mon argent, réparti : espèces (avec l'argent de départ), Airtel, Moov. */
+function cashByMode() {
+  const out = { especes: Number(db.settings.soldeInitial) || 0, airtel: 0, moov: 0 };
+  db.versements.forEach(function (v) {
+    const m = versementModes(v);
+    PAY_MODES.forEach(function (k) { out[k] += m[k]; });
+  });
+  db.operations.forEach(function (o) {
+    const key = opModeKey(o.mode);
+    const k = key === 'airtel' || key === 'moov' ? key : 'especes';
+    if (o.type === 'entree') out[k] += Number(o.montant) || 0;
+    else if (o.type === 'sortie') out[k] -= Number(o.montant) || 0;
+  });
+  return out;
+}
+
 function cashBalance() {
   const all = cashTotals(null, null);
   return (Number(db.settings.soldeInitial) || 0) + all.entrees - all.sorties;
 }
 
-function monthStart() {
-  const d = new Date();
-  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-01';
-}
 
-function yearStart() {
-  return new Date().getFullYear() + '-01-01';
-}
 
-function last7Days() {
-  const out = [];
-  for (let i = 6; i >= 0; i -= 1) {
-    const iso = addDays(todayISO(), -i);
-    const t = cashTotals(iso, iso);
-    out.push({ date: iso, entrees: t.entrees, sorties: t.sorties });
-  }
-  return out;
-}
 
 function eligibleRetraitClients() {
   return db.clients.map(function (c) {

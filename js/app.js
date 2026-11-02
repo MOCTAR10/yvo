@@ -111,39 +111,21 @@ document.addEventListener('focusout', function () {
 });
 
 /* Fondu en haut / en bas de la liste quand des liens sont cachés (petit écran). */
-function updateNavFade() {
-  const nav = document.getElementById('nav');
-  if (!nav) return;
-  nav.classList.toggle('fade-top', nav.scrollTop > 2);
-  nav.classList.toggle('fade-bottom', nav.scrollTop + nav.clientHeight < nav.scrollHeight - 2);
-}
 
 function buildNav() {
   const nav = document.getElementById('nav');
   const bottom = document.getElementById('bottom-nav');
   if (nav) {
-    nav.innerHTML = NAV_SIDEBAR.map(function (n) {
-      const label = n.id === 'tresorerie'
-        ? '<span class="nav-text"><span>' + esc(n.label) + '</span><small id="nav-caisse"></small></span>'
-        : '<span>' + esc(n.label) + '</span>';
-      return (n.id === NAV_MORE[0].id ? '<div class="nav-sep">Suivi &amp; réglages</div>' : '') +
-        '<a class="nav-link" data-nav="' + n.id + '" href="' + n.href + '">' +
-        icon(n.icon, 19) + label +
-        (n.id === 'pointage' ? '<span class="nav-badge" id="nav-due" hidden></span>' : '') +
-      '</a>';
+    nav.innerHTML = NAV.map(function (n) {
+      return '<a class="nav-link" data-nav="' + n.id + '" href="' + n.href + '">' + icon(n.icon, 19) + '<span>' + esc(n.label) + '</span></a>';
     }).join('');
-  }
-  if (nav && !nav.dataset.fade) {
-    nav.dataset.fade = '1';
-    nav.addEventListener('scroll', updateNavFade, { passive: true });
-    window.addEventListener('resize', updateNavFade);
   }
   const ver = document.getElementById('side-version');
   if (ver) ver.textContent = 'v' + APP_VERSION + ' · marche sans internet';
   if (bottom) {
     bottom.innerHTML = NAV.map(function (n) {
       return '<a class="bottom-link" data-nav="' + n.id + '" href="' + n.href + '">' +
-        '<span class="bl-pill">' + icon(n.icon, 22) + (n.id === 'pointage' ? '<i class="bl-badge" id="bl-due" hidden></i>' : '') + '</span>' +
+        '<span class="bl-pill">' + icon(n.icon, 22) + '</span>' +
         '<span class="bl-label">' + esc(n.short) + '</span>' +
       '</a>';
     }).join('');
@@ -151,21 +133,16 @@ function buildNav() {
   const back = document.getElementById('mb-back');
   if (back) back.innerHTML = icon('arrow-left', 22);
   const act = document.getElementById('mb-actions');
-  if (act) {
-    act.innerHTML =
-      '<span class="icon-btn sync-pill" data-sync-pill role="status" aria-label="Synchronisation">' + icon('cloud', 21) + '</span>' +
-      '<a class="icon-btn bell" href="#/alertes" aria-label="Alertes">' + icon('bell', 21) + '<i class="bell-badge" data-alert-badge hidden></i></a>' +
-      '<button type="button" class="icon-btn" id="mb-lock" data-action="lock-now" aria-label="Verrouiller" hidden>' + icon('lock', 21) + '</button>';
-  }
+  if (act) act.innerHTML = '<span class="icon-btn sync-pill" data-sync-pill role="status" aria-label="Synchronisation">' + icon('cloud', 21) + '</span>';
 }
 
 function parseHash() {
   const raw = String(location.hash || '').replace(/^#\/?/, '');
   const parts = raw.split('/').filter(Boolean);
-  const name = parts[0] || 'tableau';
+  const name = parts[0] || 'clients';
   const id = parts[1] || null;
   if (name === 'client') return { name: 'client', id: id };
-  if (!ROUTE_TITLES[name] || name === 'client') return { name: 'tableau', id: null };
+  if (!ROUTE_TITLES[name]) return { name: 'clients', id: null };
   return { name: name, id: null };
 }
 
@@ -188,7 +165,7 @@ function startApp() {
   if (lock) lock.hidden = true;
   if (app) app.hidden = false;
   if (!location.hash || location.hash === '#') {
-    history.replaceState(null, '', '#/tableau');
+    history.replaceState(null, '', '#/clients');
   }
   state.route = parseHash();
   render();
@@ -229,21 +206,12 @@ function updateMobileBar(route, client) {
   const back = document.getElementById('mb-back');
   const brand = document.getElementById('mb-brand');
   if (!title || !back) return;
-  const isMore = route.name === 'sync' || NAV_MORE.some(function (n) { return n.id === route.name; });
-  const isRoot = route.name === 'tableau';
-  back.hidden = !(route.name === 'client' || isMore);
-  back.setAttribute('href', route.name === 'client' ? '#/clients' : '#/plus');
-  if (brand) brand.hidden = !isRoot;
-  if (isRoot) {
-    title.textContent = db.settings.company.nom || 'YVO Épargne';
-    if (sub) sub.textContent = capitalize(fmtDate(todayISO(), 'day'));
-  } else if (route.name === 'client') {
-    title.textContent = client ? client.nom : 'Fiche client';
-    if (sub) sub.textContent = client ? (client.quartier || 'Non classé') : '';
-  } else {
-    title.textContent = ROUTE_TITLES[route.name] || 'YVO Épargne';
-    if (sub) sub.textContent = route.name === 'pointage' ? '' : '';
-  }
+  const isTab = route.name === 'clients' || route.name === 'tresorerie';
+  back.hidden = isTab;
+  back.setAttribute('href', route.name === 'cloture' ? '#/tresorerie' : '#/clients');
+  if (brand) brand.hidden = !isTab;
+  title.textContent = route.name === 'client' ? (client ? client.nom : 'Client') : (ROUTE_TITLES[route.name] || 'YVO Épargne');
+  if (sub) sub.textContent = '';
 }
 
 function render() {
@@ -253,22 +221,16 @@ function render() {
   const route = state.route || parseHash();
   let html = '';
   try {
-    if (route.name === 'pointage') html = viewPointage();
-    else if (route.name === 'clients') html = viewClients();
-    else if (route.name === 'client') html = viewClient(route.id);
-    else if (route.name === 'multi') html = viewMulti();
+    if (route.name === 'client') html = viewClient(route.id);
     else if (route.name === 'tresorerie') html = viewTresorerie();
-    else if (route.name === 'plus') html = viewPlus();
-    else if (route.name === 'activite') html = viewActivite();
     else if (route.name === 'risques') html = viewRisques();
     else if (route.name === 'cloture') html = viewCloture();
     else if (route.name === 'corbeille') html = viewCorbeille();
     else if (route.name === 'parametres') html = viewParametres();
-    else if (route.name === 'recus') html = viewRecus();
-    else if (route.name === 'commission') html = viewCommission();
     else if (route.name === 'sync') html = viewSync();
     else if (route.name === 'alertes') html = viewAlertes();
-    else html = viewDashboard();
+    else html = viewClients();
+    html += fabHTML();
   } catch (err) {
     console.error(err);
     html = '<div class="page"><div class="panel"><div class="empty"><div class="empty-icon">' + icon('alert', 26) + '</div>' +
@@ -277,62 +239,20 @@ function render() {
   }
   view.innerHTML = html;
 
-  const isMore = route.name === 'sync' || NAV_MORE.some(function (n) { return n.id === route.name; });
-  const activeSide = route.name === 'client' ? 'clients' : route.name === 'sync' ? 'parametres' : route.name;
-  const activeBottom = route.name === 'client' ? 'clients' : (isMore ? 'plus' : route.name);
-  document.querySelectorAll('.nav-link').forEach(function (el) {
-    el.classList.toggle('active', el.getAttribute('data-nav') === activeSide);
+  const active = route.name === 'tresorerie' || route.name === 'cloture' ? 'tresorerie' : 'clients';
+  document.querySelectorAll('.nav-link, .bottom-link').forEach(function (el) {
+    el.classList.toggle('active', el.getAttribute('data-nav') === active);
   });
-  const sideNav = document.getElementById('nav');
-  const sideActive = sideNav && sideNav.querySelector('.nav-link.active');
-  if (sideActive && sideNav.clientHeight) {
-    const top = sideActive.offsetTop - sideNav.offsetTop;
-    if (top < sideNav.scrollTop) sideNav.scrollTop = top - 8;
-    else if (top + sideActive.offsetHeight > sideNav.scrollTop + sideNav.clientHeight) sideNav.scrollTop = top + sideActive.offsetHeight - sideNav.clientHeight + 8;
-  }
-  updateNavFade();
-  document.querySelectorAll('.bottom-link').forEach(function (el) {
-    el.classList.toggle('active', el.getAttribute('data-nav') === activeBottom);
-  });
-
-  const t = todayISO();
-  const count = pointageEntries(t).filter(function (e) { return !e.touched; }).length;
-  ['nav-due', 'bl-due'].forEach(function (bid) {
-    const b = document.getElementById(bid);
-    if (!b) return;
-    b.textContent = count > 0 ? (count > 99 ? '99+' : String(count)) : '';
-    b.hidden = count === 0;
-  });
-
-  const navCaisse = document.getElementById('nav-caisse');
-  if (navCaisse) navCaisse.textContent = money(cashBalance());
 
   updateAlertBadge();
   updateSyncPill();
-  const lk = document.getElementById('mb-lock');
-  if (lk) lk.hidden = false;
   const client = route.name === 'client' ? clientById(route.id) : null;
   updateMobileBar(route, client);
-  document.title = (client ? client.nom : (ROUTE_TITLES[route.name] || 'Accueil')) + ' · YVO Épargne';
+  document.title = (client ? client.nom : (ROUTE_TITLES[route.name] || 'Clients')) + ' · YVO Épargne';
   document.body.setAttribute('data-route', route.name);
 
-  if (route.name === 'parametres') refreshSnapshotList();
 }
 
-function refreshSnapshotList() {
-  if (!document.getElementById('snap-list')) return;
-  listSnapshots(false).then(function (list) {
-    const el = document.getElementById('snap-list');
-    if (!el) return;
-    el.innerHTML = list.length
-      ? list.slice(0, 8).map(function (s) {
-          return '<div class="snap"><div><strong>' + esc(fmtDateTime(s.id)) + '</strong>' +
-            '<span>' + esc(SNAP_REASONS[s.reason] || s.reason) + ' · ' + s.clients + ' client' + (s.clients > 1 ? 's' : '') + ' · caisse ' + esc(money(s.caisse, true)) + '</span></div>' +
-            '<button type="button" class="btn sm ghost" data-action="snapshot-restore" data-id="' + esc(s.id) + '">' + icon('undo', 14) + ' Restaurer</button></div>';
-        }).join('') + (list.length > 8 ? '<p class="muted small">' + (list.length - 8) + ' autre(s) point(s) plus ancien(s) conservé(s).</p>' : '')
-      : '<p class="muted">Aucun point de restauration pour l’instant : le premier est créé automatiquement.</p>';
-  });
-}
 
 /* ------------------------------------------------------------
    Verrouillage
@@ -495,28 +415,9 @@ function bindEvents() {
 
   document.addEventListener('change', function (e) {
     const t = e.target;
-    if (t.id === 'pointage-date') {
-      state.pointageDate = t.value || todayISO();
+    if (t.id === 'client-quartier') {
+      state.clientQuartier = t.value;
       rerender();
-    } else if (t.id === 'client-sort') {
-      state.clientSort = t.value;
-      rerender();
-    } else if (t.id === 'treasury-type') {
-      state.treasuryType = t.value;
-      rerender();
-    } else if (t.id === 'treasury-mode') {
-      state.treasuryMode = t.value;
-      rerender();
-    } else if (t.id === 'act-client') {
-      state.actClient = t.value;
-      rerender();
-    } else if (t.id === 'act-quartier') {
-      state.actQuartier = t.value;
-      rerender();
-    } else if (t.id === 'auto-lock') {
-      db.settings.autoLock = Number(t.value) || 0;
-      saveDB();
-      toast('Verrouillage automatique mis à jour.', 'success');
     } else if (t.id === 'retrait-client') {
       syncRetraitClient(t.value);
     } else if (t.id === 'retrait-carte') {
@@ -531,15 +432,6 @@ function bindEvents() {
     if (t.id === 'client-search') {
       state.clientSearch = t.value;
       scheduleRender();
-    } else if (t.id === 'pointage-search') {
-      state.pointageSearch = t.value;
-      scheduleRender();
-    } else if (t.id === 'multi-search') {
-      state.multiSearch = t.value;
-      scheduleRender();
-    } else if (t.id === 'act-search') {
-      state.actSearch = t.value;
-      scheduleRender();
     } else if (t.id === 'retrait-montant') {
       syncRetraitClose();
     } else if (t.id === 'cloture-compte') {
@@ -551,10 +443,6 @@ function bindEvents() {
     if (e.key === 'Escape') {
       const root = document.getElementById('modal-root');
       if (root && root.innerHTML.trim()) closeModal();
-    }
-    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.prow[role="button"]')) {
-      e.preventDefault();
-      e.target.click();
     }
   });
 }
@@ -627,7 +515,7 @@ function handleAction(action, el, e) {
         const reste = carte && carte.statut === 'active' ? cardTotals(carte).resteARembourser : 0;
         if (carte && reste > 0 && action === 'toggle-carte') {
           openConfirm({
-            title: 'Clôturer la carte ?',
+            title: 'Terminer cette carte ?',
             tone: 'red',
             icon: 'alert',
             message: 'Ce client doit encore <strong>' + esc(money(reste)) + '</strong> sur une avance d’argent. Une fois la carte clôturée, ses cotisations ne rembourseront plus cette avance.',
@@ -646,7 +534,7 @@ function handleAction(action, el, e) {
           logActivity('carte', (reopening ? 'Carte réactivée : ' : 'Carte clôturée : ') + carte.label, { clientId: carte.clientId, carteId: carte.id });
           saveDB();
           rerender();
-          toast(reopening ? 'Carte réactivée.' : 'Carte clôturée. Le solde reste suivi.', 'success');
+          toast(reopening ? 'La carte reprend.' : 'Carte terminée. Son argent reste gardé.', 'success');
         }
       }
       break;
@@ -678,26 +566,6 @@ function handleAction(action, el, e) {
       if (clientId) openPaySheet(clientId, date || todayISO(), carteId);
       break;
 
-    case 'goto-carte': {
-      const panel = document.getElementById('carte-' + carteId);
-      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      break;
-    }
-
-    case 'pointage-full':
-      if (clientId && date) openQuickModeSheet(clientId, date);
-      break;
-
-    case 'pointage-full-mode': {
-      const refInput = document.getElementById('quick-ref');
-      if (clientId && date) quickFull(clientId, date, el.getAttribute('data-mode'), refInput ? refInput.value.trim() : '');
-      break;
-    }
-
-    case 'pay-none':
-      if (clientId && date) markNothing(clientId, date);
-      break;
-
     case 'pay-fill': {
       const input = document.getElementById(el.getAttribute('data-target'));
       if (input) {
@@ -708,27 +576,6 @@ function handleAction(action, el, e) {
       break;
     }
 
-    case 'pointage-today':
-      state.pointageDate = todayISO();
-      rerender();
-      break;
-
-    case 'pointage-shift':
-      state.pointageDate = addDays(state.pointageDate || todayISO(), Number(el.getAttribute('data-delta')) || 0);
-      if (state.pointageDate > todayISO()) state.pointageDate = todayISO();
-      rerender();
-      break;
-
-    case 'pointage-tab':
-      state.pointageTab = el.getAttribute('data-tab') || 'a-pointer';
-      rerender();
-      break;
-
-    case 'pointage-quartier':
-      state.pointageQuartier = el.getAttribute('data-quartier') || 'tous';
-      rerender();
-      break;
-
     case 'client-quartier':
       state.clientQuartier = el.getAttribute('data-quartier') || 'tous';
       rerender();
@@ -737,25 +584,6 @@ function handleAction(action, el, e) {
     case 'client-etat':
       state.clientEtat = el.getAttribute('data-etat') || 'tous';
       rerender();
-      break;
-
-    case 'act-period':
-      state.actPeriod = el.getAttribute('data-period') || '7j';
-      rerender();
-      break;
-
-    case 'act-kind':
-      state.actKind = el.getAttribute('data-kind') || 'tous';
-      rerender();
-      break;
-
-    case 'act-client':
-      state.actClient = clientId || 'tous';
-      state.actPeriod = 'tout';
-      state.actKind = 'tous';
-      state.actQuartier = 'tous';
-      state.actSearch = '';
-      navigate('#/activite');
       break;
 
     case 'cal-prev':
@@ -827,7 +655,7 @@ function handleAction(action, el, e) {
         saveDB();
         closeModal();
         rerender();
-        toast('Pointage effacé. Restaurable depuis la Corbeille.', 'info');
+        toast('Paiement effacé. Il est dans la Corbeille.', 'info');
       }
       break;
 
@@ -917,7 +745,7 @@ function handleAction(action, el, e) {
         logActivity('systeme', 'Restauré depuis la corbeille : ' + item.label);
         saveDB();
         rerender();
-        toast(res.skipped ? 'Élément restauré. ' + res.skipped + ' jour(s) déjà pointé(s) à nouveau : le pointage actuel est gardé.' : 'Élément restauré.', res.skipped ? 'info' : 'success');
+        toast(res.skipped ? 'C’est remis. ' + res.skipped + ' jour(s) déjà payé(s) entre-temps : ils ne changent pas.' : 'Élément restauré.', res.skipped ? 'info' : 'success');
       }
       break;
     }
@@ -946,16 +774,6 @@ function handleAction(action, el, e) {
       toast('Supprimé définitivement.', 'info');
       break;
     }
-
-    case 'multi-filter':
-      state.multiFilter = el.getAttribute('data-filter') || 'sans-retrait';
-      rerender();
-      break;
-
-    case 'treasury-period':
-      state.treasuryPeriod = el.getAttribute('data-period') || 'mois';
-      rerender();
-      break;
 
     case 'encaisser-carte':
       if (carteId) {
@@ -993,50 +811,16 @@ function handleAction(action, el, e) {
       exportCsv(el.getAttribute('data-what'));
       break;
 
-    case 'snapshot-now':
-      takeSnapshot('manuel').then(function () {
-        toast('Point de restauration créé.', 'success');
-        refreshSnapshotList();
-      });
-      break;
-
-    case 'snapshot-restore': {
-      const id = el.getAttribute('data-id');
-      openConfirm({
-        title: 'Restaurer ce point',
-        tone: 'red',
-        icon: 'undo',
-        message: 'Revenir à l’état du <strong>' + esc(fmtDateTime(id)) + '</strong> ?',
-        extra: '<p class="muted">Un point de restauration de l’état actuel est créé juste avant : vous pourrez revenir en arrière.</p>',
-        action: 'confirm-snapshot-restore',
-        data: 'data-id="' + esc(id) + '"',
-        label: 'Restaurer'
-      });
-      break;
-    }
-
     case 'confirm-snapshot-restore':
       restoreSnapshot(el.getAttribute('data-id')).then(function (ok) {
         closeModal();
         if (ok) {
           state.cal = {};
-          navigate('#/tableau');
+          navigate('#/clients');
           rerender();
           toast('Point de restauration appliqué.', 'success');
         } else toast('Restauration impossible.', 'error');
       });
-      break;
-
-    case 'pin-set':
-      openPinModal('set');
-      break;
-
-    case 'pin-change':
-      openPinModal('change');
-      break;
-
-    case 'pin-remove':
-      openPinModal('remove');
       break;
 
     case 'confirm-import':
@@ -1051,9 +835,8 @@ function handleAction(action, el, e) {
           closeModal();
           state.cal = {};
           state.clientSearch = '';
-          state.pointageSearch = '';
           startApp();
-          navigate('#/tableau');
+          navigate('#/clients');
           rerender();
           toast('Sauvegarde importée avec succès.', 'success');
         };
@@ -1162,10 +945,9 @@ function handleForm(type, form, submitter) {
       logActivity('client', 'Nouveau client : ' + client.nom + ' (' + client.quartier + ')', { clientId: client.id });
       saveDB();
       closeModal();
-      if (!guideAfterClient(client)) {
-        toast('Client créé. Vous pouvez lui ouvrir une carte.', 'success');
-        navigate('#/client/' + client.id);
-      }
+      /* Le changement de page ferme les fenêtres : on ouvre la carte juste après. */
+      window.addEventListener('hashchange', function () { openCarteModal(client.id, null); }, { once: true });
+      navigate('#/client/' + client.id);
     }
     return;
   }
@@ -1190,19 +972,11 @@ function handleForm(type, form, submitter) {
       dateFin: dateFin,
       notes: String(f.get('notes') || '').trim()
     };
-    const typ = f.has('typeId') ? cardTypeById(String(f.get('typeId'))) : undefined;
-    if (typ !== undefined) Object.assign(data, cardTypeSnapshot(typ));
-    const bId = f.has('bareme') ? String(f.get('bareme')) : null;
-    const bar = bId ? (db.settings.commission.baremes.find(function (b) { return b.id === bId; }) || null) : null;
     if (id) {
       const carte = carteById(id);
       if (!carte) return;
       const oldJ = carte.montantJournalier;
       Object.assign(carte, data);
-      if (bId !== null && ((carte.commission && carte.commission.baremeId) || '') !== bId) {
-        carte.commission = baremeSnapshot(bar);
-        logActivity('carte', 'Commission de ' + carte.label + ' : ' + (bar ? bar.nom : 'aucune'), { clientId: clientId, carteId: carte.id });
-      }
       // les statuts dépendent du journalier : on les recalcule
       db.versements.forEach(function (v) { if (v.carteId === carte.id) v.statut = statutFor(v.montant, carte.montantJournalier); });
       logActivity('carte', 'Carte modifiée : ' + carte.label + (oldJ !== montantJournalier ? ' (journalier ' + money(oldJ, true) + ' → ' + money(montantJournalier, true) + ')' : ''), { clientId: clientId, carteId: carte.id });
@@ -1212,14 +986,14 @@ function handleForm(type, form, submitter) {
       toast('Carte modifiée.', 'success');
     } else {
       const carte = Object.assign({ id: uid('ca'), statut: 'active', createdAt: new Date().toISOString() }, data);
-      if (bar) carte.commission = baremeSnapshot(bar);
       db.cartes.push(carte);
       state.cal[carte.id] = monthKeyOf(dateDebut);
+      state.clientCard[clientId] = carte.id;
       logActivity('carte', 'Nouvelle carte : ' + carte.label + ' · ' + money(montantJournalier) + '/jour du ' + fmtDate(dateDebut, 'short') + ' au ' + fmtDate(dateFin, 'short'), { clientId: clientId, carteId: carte.id });
       saveDB();
       closeModal();
       rerender();
-      if (!guideAfterCarte(carte)) toast('Carte créée. Le calendrier est prêt.', 'success');
+      toast('Carte ajoutée.', 'success');
       setTimeout(function () {
         const panel = document.getElementById('carte-' + carte.id);
         if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1244,7 +1018,7 @@ function handleForm(type, form, submitter) {
         total += amount;
       }
     });
-    if (total <= 0) return toast('Saisissez le montant reçu, ou choisissez « Rien reçu ».', 'error');
+    if (total <= 0) return toast('Écrivez le montant reçu.', 'error');
     const rec = createReceipt(clientId, date, payLines, mode, ref);
     saveDB();
     closeModal();
@@ -1288,7 +1062,7 @@ function handleForm(type, form, submitter) {
     saveDB();
     closeModal();
     rerender();
-    toast(montant <= 0 ? 'Jour marqué non versé.' : 'Pointage enregistré · ' + money(montant), montant <= 0 ? 'info' : 'success');
+    toast(montant <= 0 ? 'Ce jour est marqué pas payé.' : 'C’est enregistré · ' + money(montant), montant <= 0 ? 'info' : 'success');
     return;
   }
 
@@ -1309,10 +1083,10 @@ function handleForm(type, form, submitter) {
     if (montant > dispo) {
       return toast(dispo < tot.solde
         ? 'Une avance d’argent n’est pas encore remboursée sur une autre carte (' + money(tot.solde - dispo) + ' retenus) : vous pouvez payer au plus ' + money(dispo) + '.'
-        : 'Le montant dépasse le solde dû de ' + money(dispo) + '.', 'error');
+        : 'C’est plus que son argent : ' + money(dispo) + '.', 'error');
     }
-    if (montant > cashBalance()) return toast('Caisse insuffisante : il y a ' + money(cashBalance()) + ' en caisse. Ajoutez une entrée de caisse avant ce paiement.', 'error');
-    if (cloturer && montant < dispo) return toast('Paiement partiel : décochez « Clôturer la carte ».', 'error');
+    if (montant > cashBalance()) return toast('Pas assez d’argent : il y a ' + money(cashBalance()) + ' en caisse. Ajoutez une entrée de caisse avant ce paiement.', 'error');
+    if (cloturer && montant < dispo) return toast('Vous ne rendez pas tout : décochez « Terminer cette carte ».', 'error');
     const soldeApres = Math.max(0, tot.solde - montant);
     const recu = nextReceiptNumber();
     const op = {
@@ -1362,10 +1136,10 @@ function handleForm(type, form, submitter) {
     const libelle = String(f.get('libelle') || '').trim();
     const montant = parseMoney(f.get('montant'));
     const date = String(f.get('date') || todayISO());
-    if (!libelle) return toast('Le libellé est obligatoire.', 'error');
+    if (!libelle) return toast('Écrivez à quoi sert cet argent.', 'error');
     if (montant <= 0) return toast('Le montant doit être supérieur à 0.', 'error');
     if (opType === 'sortie' && montant > cashBalance()) {
-      return toast('Caisse insuffisante : il y a ' + money(cashBalance()) + ' en caisse.', 'error');
+      return toast('Pas assez d’argent : il y a ' + money(cashBalance()) + ' en caisse.', 'error');
     }
     db.operations.push({
       id: uid('op'),
@@ -1397,7 +1171,7 @@ function handleForm(type, form, submitter) {
     logActivity('cloture', 'Clôture du ' + fmtDate(t, 'short') + ' : compté ' + money(compte) + ', attendu ' + money(attendu) + (ecart === 0 ? ' — aucun écart' : ' — écart ' + (ecart > 0 ? '+' : '') + money(ecart)), { montant: Math.abs(ecart) });
     saveDB();
     rerender();
-    toast(ecart === 0 ? 'Journée clôturée : la caisse est juste.' : 'Journée clôturée avec un écart de ' + money(ecart) + '.', ecart === 0 ? 'success' : 'info');
+    toast(ecart === 0 ? 'C’est juste ✓' : 'C’est enregistré. ' + ecartWords(ecart) + '.', ecart === 0 ? 'success' : 'info');
     return;
   }
 
@@ -1509,41 +1283,8 @@ function addPayment(carte, date, amount, note, mode, ref) {
 }
 
 /* Un clic : le client a versé son journalier complet. */
-function quickFull(clientId, date, mode, ref) {
-  const cards = dueCards(date).filter(function (c) { return c.clientId === clientId; });
-  let total = 0;
-  payLines = [];
-  cards.forEach(function (c) {
-    const v = versementFor(c.id, date);
-    const missing = (Number(c.montantJournalier) || 0) - (v ? Number(v.montant) || 0 : 0);
-    if (missing > 0) {
-      addPayment(c, date, missing, '', mode, ref);
-      total += missing;
-    }
-  });
-  if (total <= 0) return;
-  const rec = createReceipt(clientId, date, payLines, mode, ref);
-  saveDB();
-  closeModal();
-  rerender();
-  const client = clientById(clientId);
-  toast((client ? client.nom + ' · ' : '') + money(total) + ' en ' + PAY_MODE_SHORT[mode] + ' enregistrés', 'success', rec ? { label: 'Reçu', action: 'open-recu', id: rec.id } : null);
-}
 
 /* Le client n'a rien versé ce jour. */
-function markNothing(clientId, date) {
-  const cards = dueCards(date).filter(function (c) { return c.clientId === clientId && !versementFor(c.id, date); });
-  const client = clientById(clientId);
-  const now = new Date().toISOString();
-  cards.forEach(function (c) {
-    db.versements.push({ id: uid('v'), carteId: c.id, clientId: clientId, date: date, statut: 'absent', montant: 0, note: '', historique: [], createdAt: now, updatedAt: now });
-  });
-  if (cards.length) logActivity('versement', (client ? client.nom : 'Client') + ' n’a rien versé le ' + fmtDate(date, 'short'), { clientId: clientId });
-  saveDB();
-  closeModal();
-  rerender();
-  toast('Marqué non versé.', 'info');
-}
 
 function syncCloture() {
   const input = document.getElementById('cloture-compte');
@@ -1552,13 +1293,12 @@ function syncCloture() {
   if (!input || !box || !attendu) return;
   if (input.value === '') {
     box.className = 'ecart-box';
-    box.innerHTML = '<span>Écart</span><strong>—</strong><em>Saisissez le montant compté</em>';
+    box.innerHTML = '<span>Résultat</span><strong>—</strong><em>Écrivez combien vous avez</em>';
     return;
   }
   const ecart = parseMoney(input.value) - (Number(attendu.getAttribute('data-value')) || 0);
   box.className = 'ecart-box ' + (ecart === 0 ? 'ok' : ecart < 0 ? 'neg' : 'pos');
-  box.innerHTML = '<span>Écart</span><strong>' + (ecart > 0 ? '+' : '') + esc(money(ecart)) + '</strong><em>' +
-    (ecart === 0 ? 'La caisse est juste ✓' : ecart < 0 ? 'Il manque de l’argent par rapport à ce qui est attendu' : 'Il y a plus d’argent que prévu : un versement a-t-il été oublié ?') + '</em>';
+  box.innerHTML = '<span>Résultat</span><strong>' + (ecart > 0 ? '+' : '') + esc(money(ecart)) + '</strong><em>' + esc(ecartWords(ecart)) + '</em>';
 }
 
 function syncRetraitClient(clientId) {
@@ -1578,8 +1318,8 @@ function syncRetraitCard(setAmount) {
   const choice = cards.find(function (x) { return x.carte.id === cardSelect.value; }) || cards[0];
   const solde = choice ? choice.dispo : 0;
   if (soldeBox) {
-    soldeBox.innerHTML = icon('wallet', 17) + '<div><strong>Solde dû : ' + esc(money(solde)) + '</strong><span id="retrait-solde-sub">' +
-      (choice ? esc(choice.carte.label) + ' · ' + numberFR(choice.totals.totalVerse) + ' cotisés' : '') + ' · caisse ' + esc(money(cashBalance())) + '</span></div>';
+    soldeBox.innerHTML = icon('wallet', 17) + '<div><strong>Son argent : ' + esc(money(solde)) + '</strong><span id="retrait-solde-sub">' +
+      (choice ? esc(choice.carte.label) + ' · ' : '') + 'Dans ma caisse : ' + esc(money(cashBalance())) + '</span></div>';
   }
   amountInput.max = String(solde);
   if (setAmount) amountInput.value = String(solde);
@@ -1609,13 +1349,9 @@ function resetToEmpty() {
     state.clientSearch = '';
     state.clientQuartier = 'tous';
     state.clientEtat = 'tous';
-    state.pointageSearch = '';
-    state.pointageQuartier = 'tous';
-    state.multiSearch = '';
-    state.treasuryPeriod = 'mois';
-    state.treasuryType = 'tout';
-    state.treasuryMode = 'tous';
-    navigate('#/tableau');
+    state.clientCard = {};
+    state.caisseDate = null;
+    navigate('#/clients');
     rerender();
     toast('Données de démonstration effacées. Vous pouvez démarrer.', 'info');
   });

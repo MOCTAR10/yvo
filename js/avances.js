@@ -47,8 +47,9 @@ function openPretModal(clientId, carteId) {
   }
   const carte = cards.find(function (c) { return c.id === carteId; }) || cards[0];
   openModal({
-    title: 'Avance d’argent',
-    subtitle: esc(client.nom) + ' · remboursée par ses prochaines cotisations',
+    cls: 'simple-sheet',
+    title: 'Prêter de l’argent',
+    subtitle: esc(client.nom),
     body:
       '<form id="form-pret" data-form="save-pret" autocomplete="off">' +
         '<input type="hidden" name="clientId" value="' + esc(clientId) + '">' +
@@ -57,18 +58,19 @@ function openPretModal(clientId, carteId) {
               return '<option value="' + esc(c.id) + '"' + (c.id === carte.id ? ' selected' : '') + '>' + esc(c.label) + ' · ' + esc(money(c.montantJournalier, true)) + ' / jour</option>';
             }).join('') + '</select></label>'
           : '<input type="hidden" name="carteId" id="pret-carte" value="' + esc(carte.id) + '">') +
-        '<label class="field big-field"><span>Montant donné au client *</span><div class="input-suffix"><input id="pret-montant" name="montant" type="number" inputmode="numeric" min="1" step="1" required placeholder="0" data-autofocus><span>' + esc(db.settings.devise) + '</span></div></label>' +
-        '<div class="form-grid">' +
-          '<label class="field"><span>Frais (facultatif)</span><input id="pret-frais" name="fraisValeur" type="number" inputmode="numeric" min="0" step="1" placeholder="0"></label>' +
-          '<label class="field"><span>Type de frais</span><select id="pret-frais-type" name="fraisType"><option value="fixe">' + esc(db.settings.devise) + '</option><option value="pct">%</option></select></label>' +
-        '</div>' +
+        '<label class="field big-field"><span>Combien je prête ?</span><div class="input-suffix"><input id="pret-montant" name="montant" type="number" inputmode="numeric" min="1" step="1" required placeholder="0" data-autofocus><span>' + esc(db.settings.devise) + '</span></div></label>' +
         payModePicker('especes', false) +
-        '<label class="field"><span>Note (facultatif)</span><input name="note" placeholder="Ex. frais de santé"></label>' +
+        '<details class="form-more"><summary>Ajouter des frais</summary>' +
+          '<div class="form-grid">' +
+            '<label class="field"><span>Frais</span><input id="pret-frais" name="fraisValeur" type="number" inputmode="numeric" min="0" step="1" placeholder="0"></label>' +
+            '<label class="field"><span>En</span><select id="pret-frais-type" name="fraisType"><option value="fixe">' + esc(db.settings.devise) + '</option><option value="pct">%</option></select></label>' +
+          '</div>' +
+          '<label class="field"><span>Note</span><input name="note" placeholder="Ex. santé"></label>' +
+        '</details>' +
         '<div class="pret-preview" id="pret-preview"></div>' +
       '</form>',
     footer:
-      '<button type="button" class="btn ghost" data-action="close-modal">Annuler</button>' +
-      '<button type="submit" form="form-pret" class="btn primary lg">' + icon('banknote', 17) + ' Donner l’avance</button>',
+      '<button type="submit" form="form-pret" class="btn primary simple-big">Prêter l’argent</button>',
     onMount: function () {
       const form = document.getElementById('form-pret');
       const update = function () {
@@ -80,12 +82,12 @@ function openPretModal(clientId, carteId) {
         const p = pretPreview(c, montant, frais);
         box.className = 'pret-preview' + (p.depasse ? ' warn' : '');
         box.innerHTML =
-          '<div><span>Épargne disponible sur la carte</span><strong>' + esc(money(p.tot.solde)) + '</strong></div>' +
+          '<div><span>Son argent sur cette carte</span><strong>' + esc(money(p.tot.solde)) + '</strong></div>' +
           (frais > 0 ? '<div><span>Frais</span><strong>' + esc(money(frais)) + '</strong></div>' : '') +
-          '<div class="total"><span>Le client devra rembourser</span><strong>' + esc(money(p.doitApres)) + '</strong></div>' +
-          '<div><span>Ses cotisations d’ici la fin de la carte</span><strong>' + esc(money(p.capacite)) + '</strong></div>' +
+          '<div class="total"><span>Il devra rembourser</span><strong>' + esc(money(p.doitApres)) + '</strong></div>' +
+          '<div><span>Ce qu’il paiera d’ici la fin de la carte</span><strong>' + esc(money(p.capacite)) + '</strong></div>' +
           (p.depasse && montant > 0
-            ? '<p class="pret-alert">' + icon('alert', 16) + ' Attention : ses cotisations jusqu’au ' + esc(fmtDate(c.dateFin, 'short')) + ' ne suffiront pas à tout rembourser.</p>'
+            ? '<p class="pret-alert">' + icon('alert', 16) + ' Attention : d’ici le ' + esc(fmtDate(c.dateFin, 'short')) + ', il n’aura pas tout remboursé.</p>'
             : '');
       };
       form.addEventListener('input', update);

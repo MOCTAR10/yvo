@@ -18,8 +18,7 @@ test('sans réseau : l’app s’ouvre avec les données et permet de pointer', 
   await expect(page.locator('#app')).toBeVisible();
   expect(await page.evaluate(() => db.clients.length)).toBe(clients);
 
-  await page.evaluate(() => { location.hash = '#/pointage'; });
-  await expect(page.locator('.pointage-page')).toBeVisible();
+  await expect(page.locator('.crow2').first()).toBeVisible();
   const paid = await page.evaluate(() => {
     const e = pointageEntries(todayISO()).find(x => !x.touched);
     payLines = [];

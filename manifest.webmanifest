@@ -1,7 +1,7 @@
 {
   "name": "YVO Épargne — Collecte & épargne",
   "short_name": "YVO Épargne",
-  "description": "Gestion de clients, pointage quotidien, cartes d'épargne, trésorerie et reçus. Fonctionne 100 % hors ligne.",
+  "description": "Clients, calendrier et caisse. Fonctionne 100 % hors ligne.",
   "lang": "fr",
   "dir": "ltr",
   "start_url": "./index.html",
@@ -11,9 +11,8 @@
   "background_color": "#f3f0e7",
   "theme_color": "#0a3a2b",
   "shortcuts": [
-    { "name": "Pointage du jour", "url": "./index.html#/pointage" },
     { "name": "Clients", "url": "./index.html#/clients" },
-    { "name": "Clôture de caisse", "url": "./index.html#/cloture" }
+    { "name": "Caisse", "url": "./index.html#/tresorerie" }
   ],
   "categories": ["finance", "business", "productivity"],
   "icons": [

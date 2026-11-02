@@ -1,4 +1,4 @@
-// Pointage : montants libres, mode de paiement (Espèces / Airtel / Moov), reçus.
+// Recevoir l'argent : montant écrit d'avance, mode de paiement (Espèces / Airtel / Moov), reçus.
 const { test, expect } = require('@playwright/test');
 const { openApp, clientsToPoint, goto } = require('./helpers');
 
@@ -7,33 +7,32 @@ const versementOf = (page, carteId) =>
 const lastReceipt = page =>
   page.evaluate(() => { const r = db.recus[db.recus.length - 1]; return { ...r, valid: receiptValid(r), text: receiptText(r) }; });
 
-test.describe('Pointage', () => {
+test.describe('Recevoir l’argent', () => {
   let errors;
   test.beforeEach(async ({ page }) => {
     errors = await openApp(page);
-    await goto(page, 'pointage');
+    await goto(page, 'clients');
   });
   test.afterEach(() => expect(errors).toEqual([]));
 
-  test('paiement Airtel Money avec référence → historique, reçu et texte WhatsApp', async ({ page }) => {
-    const [c] = await clientsToPoint(page);
+  test('paiement Airtel : le montant est déjà écrit, reçu et texte WhatsApp justes', async ({ page }) => {
+    const c = (await clientsToPoint(page)).find(x => x.cards.length === 1);
     await page.evaluate(id => openPaySheet(id, todayISO()), c.id);
-    await expect(page.locator('.mode-ref')).toBeHidden();
     await expect(page.locator('input[name="mode"][value="especes"]')).toBeChecked();
+    await expect(page.locator('.mode-ref, input[name="ref"], input[name="note"]')).toHaveCount(0);
     await page.locator('.mode-opt.mode-airtel').click();
-    await expect(page.locator('.mode-ref')).toBeVisible();
     await expect(page.locator('.mode-opt.mode-airtel img.mode-logo')).toBeVisible();
     await page.fill('#pay-' + c.card, '700');
-    await page.fill('input[name="ref"]', 'MP2610.1234');
     await page.click('button[form="form-pay"]');
-    await expect(page.locator('.paid-ok')).toContainText('Airtel Money');
+    await expect(page.locator('.paid-ok')).toContainText('Airtel');
+    await expect(page.locator('.paid-sheet .modal-foot a.btn, .paid-sheet .modal-foot .simple-big')).toHaveCount(1);
 
     const v = await versementOf(page, c.card);
     expect(v.montant).toBe(700);
-    expect(v.historique.at(-1)).toMatchObject({ montant: 700, mode: 'airtel', ref: 'MP2610.1234' });
+    expect(v.historique.at(-1)).toMatchObject({ montant: 700, mode: 'airtel' });
     const rec = await lastReceipt(page);
-    expect(rec).toMatchObject({ mode: 'airtel', ref: 'MP2610.1234', total: 700, valid: true });
-    expect(rec.text).toContain('Payé par : Airtel Money · réf. MP2610.1234');
+    expect(rec).toMatchObject({ mode: 'airtel', total: 700, valid: true });
+    expect(rec.text).toContain('Payé par : Airtel Money');
   });
 
   test('deux paiements le même jour (Moov puis espèces) → répartition « mixte »', async ({ page }) => {
@@ -48,36 +47,6 @@ test.describe('Pointage', () => {
     }
     const modes = await page.evaluate(id => versementModes(versementFor(id, todayISO())), c.card);
     expect(modes).toEqual({ especes: 300, airtel: 0, moov: 500 });
-    await page.evaluate(() => { state.pointageTab = 'tous'; rerender(); });
-    await expect(page.locator('.mode-tag.mode-mixte').first()).toBeVisible();
-  });
-
-  test('bouton ✓ : Yvo choisit le mode, le journalier complet est enregistré', async ({ page }) => {
-    const [c] = await clientsToPoint(page);
-    const expected = await page.evaluate(id => dueCards(todayISO()).filter(x => x.clientId === id)
-      .reduce((s, x) => s + Number(x.montantJournalier), 0), c.id);
-    await page.click('[data-action="pointage-full"][data-client="' + c.id + '"]');
-    await expect(page.locator('.mode-quick .mode-opt-btn')).toHaveCount(3);
-    await page.fill('#quick-ref', 'TX-99');
-    await page.click('[data-action="pointage-full-mode"][data-mode="moov"]');
-    await expect(page.locator('.modal')).toHaveCount(0);
-
-    const total = await page.evaluate(ids => ids.reduce((s, id) => { const v = versementFor(id, todayISO()); return s + (v ? v.montant : 0); }, 0), c.cards);
-    expect(total).toBe(expected);
-    const rec = await lastReceipt(page);
-    expect(rec).toMatchObject({ mode: 'moov', ref: 'TX-99', total: expected, valid: true });
-    await page.evaluate(() => { state.pointageTab = 'faits'; rerender(); });
-    await expect(page.locator('.prow', { hasText: c.nom }).locator('.mode-tag img[alt="Moov Money"]')).toBeVisible();
-  });
-
-  test('« Rien reçu » marque le client non versé sans créer de reçu', async ({ page }) => {
-    const [c] = await clientsToPoint(page);
-    const before = await page.evaluate(() => db.recus.length);
-    await page.evaluate(id => openPaySheet(id, todayISO()), c.id);
-    await page.click('[data-action="pay-none"]');
-    const v = await versementOf(page, c.card);
-    expect(v).toMatchObject({ montant: 0, statut: 'absent' });
-    expect(await page.evaluate(() => db.recus.length)).toBe(before);
   });
 
   test('correction d’un jour : le mode est repris et la correction tracée', async ({ page }) => {
@@ -97,10 +66,11 @@ test.describe('Pointage', () => {
   });
 
   test('saisie vide refusée', async ({ page }) => {
-    const [c] = await clientsToPoint(page);
+    const c = (await clientsToPoint(page)).find(x => x.cards.length === 1);
     await page.evaluate(id => openPaySheet(id, todayISO()), c.id);
+    await page.fill('#pay-' + c.card, '');
     await page.click('button[form="form-pay"]');
-    await expect(page.locator('.toast').last()).toContainText('Saisissez le montant');
+    await expect(page.locator('.toast').last()).toContainText('Écrivez le montant');
     expect(await versementOf(page, c.card)).toBeNull();
   });
 });

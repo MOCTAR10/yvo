@@ -2,8 +2,7 @@
 const { test, expect } = require('@playwright/test');
 const { openApp, goto } = require('./helpers');
 
-const ROUTES = ['tableau', 'pointage', 'clients', 'tresorerie', 'plus', 'activite', 'risques', 'cloture',
-  'recus', 'commission', 'sync', 'alertes', 'multi', 'corbeille', 'parametres'];
+const ROUTES = ['clients', 'tresorerie', 'risques', 'cloture', 'sync', 'alertes', 'corbeille', 'parametres'];
 
 for (const demo of [true, false]) {
   test(`tous les écrans s’affichent (${demo ? 'démo' : 'app vide'})`, async ({ page }) => {

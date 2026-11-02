@@ -207,31 +207,8 @@ function openRecuModal(id) {
     subtitle: esc(rec.numero),
     body: receiptCardHTML(rec) + (link ? '<p class="hint">Lien de vérification : <b>' + esc(link) + '</b></p>' : '<p class="hint">Avec la sauvegarde en ligne, le reçu contient un lien pour le vérifier.</p>'),
     footer:
-      '<button type="button" class="btn primary lg" data-action="share-recu-image" data-id="' + esc(rec.id) + '">' + icon('share', 17) + ' Envoyer le reçu (image)</button>' +
-      (wa ? '<a class="btn wa lg" href="' + esc(wa) + '" target="_blank" rel="noopener">' + icon('message', 17) + ' WhatsApp (texte)</a>' : '') +
-      (link ? '<button type="button" class="btn ghost lg" data-action="copy-recu-link" data-id="' + esc(rec.id) + '">Copier le lien</button>' : '')
+      '<button type="button" class="btn primary lg" data-action="share-recu-image" data-id="' + esc(rec.id) + '">' + icon('share', 17) + ' Envoyer en image</button>' +
+      (wa ? '<a class="btn wa lg" href="' + esc(wa) + '" target="_blank" rel="noopener">' + icon('message', 17) + ' Envoyer par WhatsApp</a>' : '')
   });
 }
 
-function viewRecus() {
-  const q = (state.recuSearch || '').trim().toLowerCase();
-  let list = db.recus.slice().sort(function (a, b) { return b.at.localeCompare(a.at); });
-  if (q) list = list.filter(function (r) { return (r.clientNom + ' ' + r.numero + ' ' + r.quartier).toLowerCase().indexOf(q) >= 0; });
-  const total = sum(list, function (r) { return r.total; });
-  return '<div class="page">' +
-    pageHead('Preuves de paiement', 'Reçus de versement', 'Chaque versement génère un reçu numéroté et infalsifiable que vous pouvez envoyer au client. Ils ne peuvent ni être modifiés ni supprimés.') +
-    '<div class="mini-kpis">' +
-      '<div class="mini-kpi"><span>Reçus émis</span><strong>' + numberFR(list.length) + '</strong><em>sur le filtre</em></div>' +
-      '<div class="mini-kpi"><span>Montant</span><strong>' + esc(money(total)) + '</strong><em>total des reçus</em></div>' +
-    '</div>' +
-    '<div class="search-box">' + icon('search', 17) + '<input id="recu-search" type="search" placeholder="Client, numéro de reçu…" value="' + esc(state.recuSearch || '') + '" autocomplete="off"></div>' +
-    (list.length
-      ? '<div class="panel feed">' + list.slice(0, 150).map(function (r) {
-          return '<button type="button" class="feed-item recu-item" data-action="open-recu" data-id="' + esc(r.id) + '">' +
-            '<span class="feed-ic green">' + icon('receipt', 16) + '</span>' +
-            '<div class="feed-main"><div class="feed-text">' + esc(r.clientNom) + ' · ' + esc(r.numero) + '</div><div class="feed-meta"><span>' + esc(fmtDateTime(r.at)) + '</span>' + (receiptValid(r) ? '' : '<span class="red">code invalide</span>') + '</div></div>' +
-            '<div class="feed-amt in">' + esc(money(r.total, true)) + '</div></button>';
-        }).join('') + '</div>'
-      : '<div class="panel">' + emptyState('receipt', 'Aucun reçu', 'Les reçus apparaissent ici dès qu’un client verse de l’argent.', '') + '</div>') +
-  '</div>';
-}

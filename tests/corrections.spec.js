@@ -66,7 +66,8 @@ test.describe('Corrections — argent et clients', () => {
       saveDB(); location.hash = '#/client/' + c.clientId;
       return c.id;
     });
-    await page.locator('#carte-' + id + ' [data-action="toggle-carte"]').click();
+    await page.evaluate(i => openCarteModal(carteById(i).clientId, carteById(i)), id);
+    await page.click('[data-action="toggle-carte"]');
     await expect(page.locator('.modal')).toContainText('7 000');
     expect(await page.evaluate(i => carteById(i).statut, id)).toBe('active');
     await page.click('[data-action="confirm-toggle-carte"]');
@@ -98,24 +99,10 @@ test.describe('Corrections — argent et clients', () => {
     expect(r.apres2).toEqual({ especes: 0, airtel: 2500, moov: 0 });
   });
 
-  test('pointage : une carte non payée garde la ligne « à compléter »', async ({ page }) => {
-    const r = await page.evaluate(() => {
-      const client = db.clients[0];
-      const d = todayISO();
-      const mk = id => { const k = { id, clientId: client.id, label: id, montantJournalier: 1000, dateDebut: addDays(d, -3), dateFin: addDays(d, 30), statut: 'active' }; db.cartes.push(k); return k; };
-      db.cartes.filter(c => c.clientId === client.id).forEach(c => { c.statut = 'cloturee'; });
-      const a = mk('k_pa'); mk('k_pb');
-      addPayment(a, d, 2000, '', 'especes');
-      return pointageEntries(d).find(e => e.client.id === client.id).state;
-    });
-    expect(r).toBe('partiel');
-  });
-
   test('on ne pointe pas un jour à venir', async ({ page }) => {
     const r = await page.evaluate(() => {
       const c = db.cartes.find(x => x.statut === 'active' && x.dateFin > addDays(todayISO(), 2));
-      openDayModal(c.id, addDays(todayISO(), 1));
-      state.pointageDate = todayISO();
+      openDayTap(c.id, addDays(todayISO(), 1));
       return !!document.querySelector('.modal form');
     });
     expect(r).toBe(false);

@@ -9,7 +9,7 @@
    ============================================================ */
 
 const ALERT_SEV = { critique: 3, important: 2, info: 1 };
-const ALERT_LABELS = { critique: 'Critique', important: 'À vérifier', info: 'Information' };
+const ALERT_LABELS = { critique: 'Urgent', important: 'À vérifier', info: 'Pour info' };
 
 function computeAlerts() {
   const out = [];
@@ -22,11 +22,11 @@ function computeAlerts() {
   /* 1. Caisse inférieure à ce qui est dû aux clients */
   const cov = cashCoverage();
   if (cov < 0) {
-    add('critique', 'caisse-dette', 'La caisse ne couvre pas l’argent des clients',
-      'Il manque ' + money(-cov) + ' : la caisse (' + money(cashBalance()) + ') est inférieure au total dû aux clients (' + money(fundsOwed()) + ').', '#/tresorerie', Math.round(-cov));
+    add('critique', 'caisse-dette', 'Il manque de l’argent en caisse',
+      'Il manque ' + money(-cov) + ' : la caisse a ' + money(cashBalance()) + ' et les clients ont ' + money(fundsOwed()) + '.', '#/tresorerie', Math.round(-cov));
   }
   if (cashBalance() < 0) {
-    add('critique', 'caisse-neg', 'Caisse négative', 'La caisse affiche ' + money(cashBalance()) + '. Une sortie a dépassé les entrées.', '#/tresorerie', Math.round(cashBalance()));
+    add('critique', 'caisse-neg', 'La caisse est à moins de zéro', 'La caisse affiche ' + money(cashBalance()) + '. Vérifiez ce qui est sorti.', '#/tresorerie', Math.round(cashBalance()));
   }
 
   /* 2. Doublons de versement (même carte, même jour) */
@@ -37,15 +37,15 @@ function computeAlerts() {
   });
   const dups = Object.keys(seen).filter(function (k) { return seen[k] > 1; });
   if (dups.length) {
-    add('important', 'doublon', dups.length + ' jour(s) pointé(s) en double',
-      'Une même carte a plusieurs lignes le même jour. La synchronisation les additionne ; vérifiez les montants.', '#/activite', dups.length);
+    add('important', 'doublon', dups.length + ' jour(s) comptés deux fois',
+      'Une carte a deux paiements écrits pour le même jour. Vérifiez les montants.', '#/clients', dups.length);
   }
 
   /* 3. Orphelins : versements ou opérations vers une carte/un client inexistant */
   const orphV = db.versements.filter(function (v) { return !carteById(v.carteId) || !clientById(v.clientId); });
   if (orphV.length) {
-    add('critique', 'orphelin', orphV.length + ' versement(s) sans carte ou client',
-      'Ces versements comptent dans la caisse mais ne sont rattachés à aucune fiche. Restaurez la fiche depuis la Corbeille.', '#/corbeille', orphV.length);
+    add('critique', 'orphelin', orphV.length + ' paiement(s) sans client',
+      'Le client ou la carte a été supprimé. Remettez-le depuis la Corbeille.', '#/corbeille', orphV.length);
   }
 
   db.cartes.forEach(function (c) {
@@ -58,39 +58,34 @@ function computeAlerts() {
     /* 4. Versements hors période */
     const hors = versementsOf(c.id).filter(function (v) { return v.montant > 0 && (v.date < c.dateDebut || v.date > c.dateFin); });
     if (hors.length) {
-      add('important', 'hors-periode-' + c.id, nom + ' : versement hors période',
-        hors.length + ' versement(s) datent d’avant le début ou d’après la fin de la carte.', href, hors.length);
+      add('important', 'hors-periode-' + c.id, nom + ' : paiement en dehors de la carte',
+        hors.length + ' paiement(s) datent d’avant le début ou d’après la fin de la carte.', href, hors.length);
     }
     /* 5. Versements futurs */
     const futur = versementsOf(c.id).filter(function (v) { return v.montant > 0 && v.date > t; });
     if (futur.length) {
-      add('important', 'futur-' + c.id, nom + ' : versement daté dans le futur',
-        'Un versement porte une date postérieure à aujourd’hui. Vérifiez la date saisie.', href, futur.length);
+      add('important', 'futur-' + c.id, nom + ' : paiement à une date pas encore arrivée',
+        'Vérifiez la date de ce paiement.', href, futur.length);
     }
     /* 6. Solde négatif / retraits supérieurs aux versements */
-    const net = tot.totalVerse - (tot.commission || 0) - tot.totalRetire;
+    const net = tot.totalVerse - tot.totalRetire;
     if (net < -0.5) {
-      add('critique', 'solde-neg-' + c.id, nom + ' : retraits supérieurs aux versements',
-        'Il a été retiré ' + money(-net) + ' de plus que ce que le client a versé (commission comprise).', href, Math.round(net));
+      add('critique', 'solde-neg-' + c.id, nom + ' : trop d’argent rendu',
+        'Le client a reçu ' + money(-net) + ' de plus que ce qu’il a payé.', href, Math.round(net));
     }
     /* 7. Carte terminée avec un solde encore dû */
     if (c.statut === 'active' && c.dateFin < t && tot.solde > 0) {
-      add('important', 'fin-solde-' + c.id, nom + ' : terminée, solde non payé',
-        'La période est finie et ' + money(tot.solde) + ' reste dû au client. Faites le paiement et clôturez la carte.', href, Math.round(tot.solde));
+      add('important', 'fin-solde-' + c.id, nom + ' : carte finie, argent à rendre',
+        'Il faut rendre ' + money(tot.solde) + ' au client.', href, Math.round(tot.solde));
     }
     /* 8. Carte clôturée avec un solde */
     if (c.statut !== 'active' && tot.solde > 0) {
-      add('important', 'clos-solde-' + c.id, nom + ' : clôturée mais un solde reste',
-        'Cette carte est clôturée alors que ' + money(tot.solde) + ' sont encore dus.', href, Math.round(tot.solde));
+      add('important', 'clos-solde-' + c.id, nom + ' : carte terminée, argent à rendre',
+        'Il faut encore rendre ' + money(tot.solde) + ' au client.', href, Math.round(tot.solde));
     }
     /* 9. Dates incohérentes */
     if (c.dateFin < c.dateDebut) {
-      add('critique', 'dates-' + c.id, nom + ' : dates incohérentes', 'La date de fin précède la date de début.', href, c.dateDebut + c.dateFin);
-    }
-    /* 10. Commission supérieure aux versements */
-    if (commissionActive() && tot.commission > tot.totalVerse + 0.5) {
-      add('critique', 'comm-' + c.id, nom + ' : commission supérieure aux versements',
-        'La commission (' + money(tot.commission) + ') dépasse ce que le client a versé. Revoyez le barème.', '#/commission', Math.round(tot.commission));
+      add('critique', 'dates-' + c.id, nom + ' : dates à corriger', 'Le dernier jour est avant le premier jour.', href, c.dateDebut + c.dateFin);
     }
   });
 
@@ -99,8 +94,8 @@ function computeAlerts() {
     return o.type === 'sortie' && o.categorie === 'retrait' && (!clientById(o.clientId) || !carteById(o.carteId));
   });
   if (retraitsBad.length) {
-    add('important', 'retrait-orphelin', retraitsBad.length + ' retrait(s) sans fiche',
-      'Des paiements aux clients sont rattachés à une fiche supprimée.', '#/tresorerie', retraitsBad.length);
+    add('important', 'retrait-orphelin', retraitsBad.length + ' argent rendu sans client',
+      'Le client ou la carte a été supprimé.', '#/tresorerie', retraitsBad.length);
   }
 
   /* 12. Clôture de caisse avec écart */
@@ -108,49 +103,49 @@ function computeAlerts() {
     const ecart = Number(cl.ecart) || 0;
     if (ecart !== 0) {
       add(Math.abs(ecart) >= 5000 ? 'critique' : 'important', 'ecart-' + cl.date,
-        'Écart de caisse le ' + fmtDate(cl.date, 'short'),
-        (ecart < 0 ? 'Il manquait ' : 'Il y avait ') + money(Math.abs(ecart)) + (ecart < 0 ? ' de moins' : ' de plus') + ' que prévu à la clôture.', '#/cloture', cl.date + ecart);
+        'Argent pas juste le ' + fmtDate(cl.date, 'short'),
+        (ecart < 0 ? 'Il manquait ' : 'Il y avait ') + money(Math.abs(ecart)) + (ecart < 0 ? ' de moins' : ' de plus') + ' que prévu.', '#/cloture', cl.date + ecart);
     }
   });
   /* 13. Jour précédent non clôturé */
   const hier = addDays(t, -1);
   if (!clotureOf(hier) && db.versements.some(function (v) { return v.date === hier && v.montant > 0; })) {
-    add('info', 'non-cloture', 'Journée d’hier non clôturée', 'Des versements ont été saisis hier mais la caisse n’a pas été comptée.', '#/cloture', hier);
+    add('info', 'non-cloture', 'Argent d’hier pas compté', 'Il y a eu des paiements hier, mais vous n’avez pas compté votre argent.', '#/cloture', hier);
   }
 
   /* 14. Clients à risque */
   const risque = db.clients.filter(function (c) { return c.actif !== false && clientRisk(c).niveau === 'risque'; });
   if (risque.length) {
-    add('important', 'risque', risque.length + ' client(s) à risque',
-      'Aucun versement depuis plusieurs jours : ' + risque.slice(0, 3).map(function (c) { return c.nom; }).join(', ') + (risque.length > 3 ? '…' : '') + '.', '#/risques', risque.length);
+    add('important', 'risque', risque.length + ' client(s) à appeler',
+      'Rien payé depuis plusieurs jours : ' + risque.slice(0, 3).map(function (c) { return c.nom; }).join(', ') + (risque.length > 3 ? '…' : '') + '.', '#/risques', risque.length);
   }
 
   /* 14 bis. Carte clôturée qui doit encore une avance d'argent */
   const avancesBloquees = db.cartes.filter(function (c) { return c.statut !== 'active' && cardTotals(c).resteARembourser > 0; });
   if (avancesBloquees.length) {
     const c0 = avancesBloquees[0];
-    add('important', 'avance-cloturee', avancesBloquees.length + ' avance(s) d’argent sur une carte clôturée',
-      'Ces cartes ne reçoivent plus de cotisations : l’avance ne se rembourse plus. Réactivez la carte ou réglez avec le client.', '#/client/' + c0.clientId, avancesBloquees.length);
+    add('important', 'avance-cloturee', avancesBloquees.length + ' prêt(s) sur une carte terminée',
+      'Le client doit encore rembourser. Reprenez la carte ou voyez avec lui.', '#/client/' + c0.clientId, avancesBloquees.length);
   }
 
   /* 15. Reçus altérés */
   const badRec = db.recus.filter(function (r) { return !receiptValid(r); });
   if (badRec.length) {
-    add('critique', 'recu-code', badRec.length + ' reçu(s) dont le code ne correspond pas',
-      'Le contenu de ces reçus a été modifié après leur émission : ils ne peuvent plus servir de preuve.', '#/recus', badRec.length);
+    add('critique', 'recu-code', badRec.length + ' reçu(s) modifié(s)',
+      'Ces reçus ont changé après leur création : ils ne servent plus de preuve.', '#/clients', badRec.length);
   }
 
   /* 16. Sauvegarde et stockage */
   if (storageInfo.persisted === false) {
-    add('info', 'stockage', 'Données pas assez protégées', 'Ajoutez l’application à l’écran d’accueil et allumez Internet de temps en temps : tout partira sur le serveur.', '#/parametres', 1);
+    add('info', 'stockage', 'Données pas assez protégées', 'Mettez l’application sur l’écran d’accueil et allumez Internet de temps en temps.', '#/parametres', 1);
   }
   if (storageInfo.error) {
-    add('critique', 'stockage-err', 'Erreur d’enregistrement', 'La sauvegarde locale a échoué : ' + storageInfo.error + '. Gardez le réseau allumé pour que tout parte sur le serveur.', '#/parametres', storageInfo.error);
+    add('critique', 'stockage-err', 'Erreur d’enregistrement', 'Le téléphone n’arrive pas à enregistrer. Gardez le réseau allumé pour que tout parte en ligne.', '#/parametres', storageInfo.error);
   }
 
   /* 17. Synchronisation */
   if (!syncCfg && db.clients.length) {
-    add('important', 'sync-off', 'Données pas encore en ligne', 'Verrouillez puis reconnectez-vous avec Internet : vos données partiront sur le serveur.', '#/parametres', 1);
+    add('important', 'sync-off', 'Données pas encore en ligne', 'Verrouillez, puis rouvrez avec Internet : tout partira en ligne.', '#/parametres', 1);
   }
   if (syncCfg) {
     if (syncState.status === 'error') {
@@ -163,10 +158,10 @@ function computeAlerts() {
     }
     const pend = typeof countPending === 'function' ? countPending() : 0;
     if (pend > 0 && Date.now() - (last || 0) > 86400000) {
-      add('info', 'sync-attente', pend + ' modification(s) en attente d’envoi', 'Elles partiront dès que la connexion revient.', '#/parametres', pend);
+      add('info', 'sync-attente', pend + ' changement(s) pas encore envoyé(s)', 'Ils partiront quand le réseau revient.', '#/parametres', pend);
     }
     syncState.conflicts.slice(0, 5).forEach(function (cf) {
-      add('important', 'conflit-' + cf.kind + cf.id, 'Deux appareils ont modifié la même fiche', 'La version la plus récente a été gardée. L’autre est conservée dans l’historique.', '#/parametres', cf.at);
+      add('important', 'conflit-' + cf.kind + cf.id, 'Deux téléphones ont changé le même client', 'Le plus récent a été gardé.', '#/parametres', cf.at);
     });
   }
 
@@ -203,20 +198,15 @@ function viewAlertes() {
       '<div class="alert-main"><span class="alert-sev">' + ALERT_LABELS[a.sev] + '</span><strong>' + esc(a.title) + '</strong><p>' + esc(a.text) + '</p>' +
         '<div class="alert-actions">' +
           (a.href ? '<a class="btn sm primary" href="' + esc(a.href) + '">Voir</a>' : '') +
-          (!seen ? '<button type="button" class="btn sm ghost" data-action="alert-ack" data-key="' + esc(a.key) + '">J’ai vu</button>' : '<button type="button" class="btn sm ghost" data-action="alert-unack" data-key="' + esc(a.key) + '">Réactiver</button>') +
+          (!seen ? '<button type="button" class="btn sm ghost" data-action="alert-ack" data-key="' + esc(a.key) + '">J’ai vu</button>' : '<button type="button" class="btn sm ghost" data-action="alert-unack" data-key="' + esc(a.key) + '">Remettre</button>') +
         '</div></div></div>';
   };
-  const crit = actives.filter(function (a) { return a.sev === 'critique'; }).length;
-  return '<div class="page">' +
-    pageHead('Surveillance', 'Alertes', 'L’application vérifie vos chiffres en permanence et vous prévient s’il y a un problème.') +
-    '<div class="mini-kpis">' +
-      '<div class="mini-kpi"><span>À traiter</span><strong>' + actives.length + '</strong><em>' + (crit ? crit + ' critique(s)' : 'aucune critique') + '</em></div>' +
-      '<div class="mini-kpi"><span>Déjà vues</span><strong>' + vues.length + '</strong><em>réapparaissent si ça change</em></div>' +
-    '</div>' +
+  return '<div class="page simple-page">' +
+    '<h1 class="simple-title">Problèmes à vérifier</h1>' +
     (actives.length
       ? '<div class="alert-list">' + actives.map(function (a) { return card(a, false); }).join('') + '</div>'
-      : '<div class="panel">' + emptyState('check-circle', 'Tout est cohérent', 'Aucune anomalie détectée. Vous serez prévenu ici dès qu’un problème apparaît.', '') + '</div>') +
-    (actives.length ? '<div class="inline-actions"><button type="button" class="btn ghost" data-action="alert-ack-all">Tout marquer comme vu</button></div>' : '') +
-    (vues.length ? '<h3 class="section-title">Déjà vues</h3><div class="alert-list">' + vues.map(function (a) { return card(a, true); }).join('') + '</div>' : '') +
+      : '<div class="simple-done">✓ Tout va bien</div>') +
+    (actives.length > 1 ? '<div class="inline-actions"><button type="button" class="btn ghost" data-action="alert-ack-all">J’ai tout vu</button></div>' : '') +
+    (vues.length ? '<details class="simple-sec"><summary>Déjà vus (' + vues.length + ')</summary><div class="alert-list">' + vues.map(function (a) { return card(a, true); }).join('') + '</div></details>' : '') +
   '</div>';
 }

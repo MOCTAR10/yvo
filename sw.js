@@ -1,13 +1,12 @@
 /* YVO Épargne — service worker (hors ligne) */
 'use strict';
 
-const CACHE = 'yvo-epargne-v3.1.2';
+const CACHE = 'yvo-epargne-v4.0.0';
 const ASSETS = [
   './index.html',
   './styles.css',
   './premium.css',
   './js/storage.js',
-  './js/views-pointage.js',
   './js/views-more.js',
   './js/modals-pay.js',
   './manifest.webmanifest',
@@ -19,7 +18,6 @@ const ASSETS = [
   './img/moov-money.png',
   './js/core.js',
   './js/components.js',
-  './js/views-dashboard.js',
   './js/views-clients.js',
   './js/views-cash.js',
   './js/modals.js',
@@ -28,10 +26,8 @@ const ASSETS = [
   './js/recus.js',
   './js/avances.js',
   './js/alertes.js',
-  './js/views-commission.js',
   './js/views-sync.js',
-  './js/card-types.js',
-  './js/guide.js',
+  './js/fab.js',
   './js/handlers-extra.js',
   './js/app.js'
 ];
