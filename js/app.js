@@ -1091,7 +1091,7 @@ function handleForm(type, form, submitter) {
     const dispo = retraitDispo(carte);
     if (montant > dispo) {
       return toast(dispo < tot.solde
-        ? 'Un prêt n’est pas encore remboursé sur une autre carte (' + money(tot.solde - dispo) + ' gardés) : vous pouvez rendre au plus ' + money(dispo) + '.'
+        ? 'Il doit encore ' + money(tot.solde - dispo) + ' sur son prêt. Vous pouvez lui rendre ' + money(dispo) + ' au plus.'
         : 'C’est plus que son argent : ' + money(dispo) + '.', 'error');
     }
     if (montant > cashBalance()) return toast('Pas assez d’argent : il y a ' + money(cashBalance()) + ' en caisse. Ajoutez une entrée de caisse avant ce paiement.', 'error');
@@ -1328,6 +1328,7 @@ function syncRetraitCard(setAmount) {
   const solde = choice ? choice.dispo : 0;
   if (soldeBox) {
     soldeBox.innerHTML = icon('wallet', 17) + '<div><strong>Son argent : ' + esc(money(solde)) + '</strong><span id="retrait-solde-sub">' +
+      (choice && choice.dispo < choice.totals.solde ? 'Le reste couvre son prêt · ' : '') +
       (choice ? esc(choice.carte.label) + ' · ' : '') + 'Dans ma caisse : ' + esc(money(cashBalance())) + '</span></div>';
   }
   amountInput.max = String(solde);

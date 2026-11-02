@@ -1,7 +1,7 @@
 /* YVO Épargne — service worker (hors ligne) */
 'use strict';
 
-const CACHE = 'yvo-epargne-v4.0.5';
+const CACHE = 'yvo-epargne-v4.0.6';
 const ASSETS = [
   './index.html',
   './styles.css',

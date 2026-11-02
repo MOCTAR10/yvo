@@ -167,3 +167,69 @@ test('un gros prêt : la carte passe sous zéro, puis il rembourse après la fin
   await expect(page.locator('.fab-item', { hasText: 'Rembourser le prêt' })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('un prêt et de l’argent sur deux cartes : une phrase simple et un seul résultat', async ({ page }) => {
+  const errors = await openApp(page, { demo: false });
+  await page.evaluate(() => {
+    const t = todayISO();
+    db.settings.soldeInitial = 100000;
+    db.clients.push({ id: 'c_m', nom: 'Awa Ndong', telephone: '077000000', quartier: 'Balise', actif: true });
+    db.cartes.push({ id: 'k_1', clientId: 'c_m', label: 'Carte 1', montantJournalier: 1000, dateDebut: t, dateFin: addDays(t, 30), statut: 'active' });
+    db.cartes.push({ id: 'k_2', clientId: 'c_m', label: 'Carte 2', montantJournalier: 8000, dateDebut: t, dateFin: addDays(t, 30), statut: 'active' });
+    payLines = [];
+    addPayment(carteById('k_2'), t, 8000, '', 'especes', '');
+    db.operations.push({ id: 'op_m', type: 'sortie', categorie: 'pret', montant: 5000, frais: 0, carteId: 'k_1', clientId: 'c_m', date: t, mode: 'Espèces', createdAt: new Date().toISOString(), snapshot: { carteLabel: 'Carte 1' } });
+    saveDB();
+  });
+  await goto(page, 'client/c_m');
+  const phrase = 'Il a 8 000 FCFA. Il doit 5 000 FCFA sur son prêt. Il reste 3 000 FCFA pour lui.';
+  await expect(page.locator('.simple-calc')).toHaveText(phrase);
+  await expect(page.locator('.simple-status')).toContainText('Son argent : 3 000');
+  // la même chose sur les deux cartes
+  await page.click('.card-switch [data-carte="k_2"]');
+  await expect(page.locator('.simple-calc')).toHaveText(phrase);
+  await expect(page.locator('.simple-status')).toContainText('Son argent : 3 000');
+  await page.click('.card-switch [data-carte="k_1"]');
+  await expect(page.locator('.simple-status')).toContainText('Son argent : 3 000');
+
+  // Rendre son argent : le même chiffre, et il dit pourquoi
+  await page.click('.fab');
+  await page.locator('.fab-item', { hasText: 'Rendre son argent' }).click();
+  await expect(page.locator('#retrait-solde')).toContainText('Son argent : 3 000');
+  await expect(page.locator('#retrait-solde')).toContainText('Le reste couvre son prêt');
+  await page.evaluate(() => closeModal());
+
+  // le prêt dépasse son argent : il doit encore la différence
+  await page.evaluate(() => { db.operations.find(o => o.id === 'op_m').montant = 10000; saveDB(); rerender(); });
+  await expect(page.locator('.simple-calc')).toHaveText('Il a 8 000 FCFA. Il doit 10 000 FCFA sur son prêt. Il doit encore 2 000 FCFA.');
+  await expect(page.locator('.simple-status')).toContainText('Doit rembourser 2 000');
+
+  // sans argent de côté : pas de phrase
+  await page.evaluate(() => { db.versements = []; saveDB(); rerender(); });
+  await expect(page.locator('.simple-calc')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('déjà en négatif, Yvo peut encore prêter : tout s’additionne et reste suivi', async ({ page }) => {
+  const errors = await openApp(page, { demo: false });
+  await page.evaluate(() => {
+    const t = todayISO();
+    db.settings.soldeInitial = 100000;
+    db.clients.push({ id: 'c_n', nom: 'Awa Ndong', telephone: '077000000', quartier: 'Balise', actif: true });
+    db.cartes.push({ id: 'k_n', clientId: 'c_n', label: 'Carte 1', montantJournalier: 1000, dateDebut: t, dateFin: addDays(t, 30), statut: 'active' });
+    saveDB();
+  });
+  await goto(page, 'client/c_n');
+  for (const montant of ['10000', '50000']) {
+    await page.click('.fab');
+    await page.locator('.fab-item', { hasText: 'Prêter de l’argent' }).click();
+    await page.fill('#pret-montant', montant);
+    await page.click('button[form="form-pret"]');
+    await expect(page.locator('.modal')).toHaveCount(0);
+  }
+  await expect(page.locator('.simple-status')).toContainText('Doit rembourser 60 000');
+  expect(await page.evaluate(() => cardTotals(carteById('k_n')).soldeBrut)).toBe(-60000);
+  await page.locator('details[data-sec="prets"] summary').click();
+  await expect(page.locator('details[data-sec="prets"] .simple-line')).toHaveCount(2);
+  expect(errors).toEqual([]);
+});

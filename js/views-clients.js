@@ -209,6 +209,10 @@ function viewClient(id) {
   const cards = cartesOf(client.id).sort(function (a, b) { return a.dateDebut.localeCompare(b.dateDebut); });
   const carte = selectedCard(client);
   const doitCarte = carte ? cardTotals(carte).resteARembourser : 0;
+  /* De l'argent sur une carte et un prêt sur une autre : une seule phrase, un seul résultat. */
+  const garde = sum(cards.map(cardTotals), function (x) { return x.solde; });
+  const pretDu = sum(cards.map(cardTotals), function (x) { return x.resteARembourser; });
+  const mixte = garde > 0 && pretDu > 0;
 
   const paiements = recentPaymentsOf(client, 50);
   const donne = db.operations.filter(function (o) {
@@ -230,12 +234,19 @@ function viewClient(id) {
     '<h1 class="simple-title desktop-only">' + esc(client.nom) + '</h1>' +
     '<div class="simple-status ' + (st.doit > 0 ? 'late' : 'ok') + '">' +
       '<strong>' + (st.doit > 0 ? 'Doit ' + esc(money(st.doit)) : '✓ Ne doit rien') + '</strong>' +
-      (doitCarte > 0
+      (mixte
+        ? '<span>' + (tot.resteARembourser > 0 ? 'Doit rembourser ' + esc(money(tot.resteARembourser)) : 'Son argent : ' + esc(money(tot.solde))) + '</span>'
+        : doitCarte > 0
         ? '<span>Doit rembourser ' + esc(money(doitCarte)) + (cards.length > 1 ? ' sur cette carte' : '') + '</span>'
         : tot.resteARembourser > 0
           ? '<span>Doit rembourser ' + esc(money(tot.resteARembourser)) + ' sur une autre carte</span>'
           : '<span>Son argent : ' + esc(money(tot.solde)) + '</span>') +
     '</div>' +
+    (mixte
+      ? '<p class="simple-calc">Il a ' + esc(money(garde)) + '. Il doit ' + esc(money(pretDu)) + ' sur son prêt. ' +
+          (tot.resteARembourser > 0 ? 'Il doit encore ' + esc(money(tot.resteARembourser)) + '.'
+            : tot.solde > 0 ? 'Il reste ' + esc(money(tot.solde)) + ' pour lui.' : 'Il ne reste rien.') + '</p>'
+      : '') +
     (cards.length > 1
       ? '<div class="simple-chips card-switch">' + cards.map(function (c) {
           const d = c.statut === 'active' ? cardToday(c, client) : null;

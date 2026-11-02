@@ -1077,6 +1077,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .simple-none { text-align: center; padding: 18px; }
 .simple-status { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; padding: 12px 14px; border-radius: 12px; font-size: 16px; }
 .simple-status strong { font-size: 18px; }
+.simple-calc { margin: 0; padding: 0 4px; color: var(--ink); font-size: 15px; line-height: 1.35; }
 .simple-status.ok { background: var(--green-bg); color: var(--green); }
 .simple-status.late { background: var(--red-bg); color: var(--red); }
 .simple-big { width: 100%; min-height: 58px; font-size: 19px !important; font-weight: 700; justify-content: center; border-radius: 14px; }

@@ -71,9 +71,11 @@ function openPretModal(clientId, carteId) {
         const box = document.getElementById('pret-preview');
         if (!c || !box) return;
         const p = pretPreview(c, montant);
+        const autres = sum(cartesOf(c.clientId).filter(function (k) { return k.id !== c.id; }).map(cardTotals), function (x) { return x.solde; });
         box.className = 'pret-preview' + (p.depasse ? ' warn' : '');
         box.innerHTML =
           '<div><span>Son argent sur cette carte</span><strong>' + esc(money(p.tot.solde)) + '</strong></div>' +
+          (autres > 0 ? '<div><span>Son argent sur ses autres cartes</span><strong>' + esc(money(autres)) + '</strong></div>' : '') +
           '<div class="total"><span>Il devra rembourser</span><strong>' + esc(money(p.doitApres)) + '</strong></div>' +
           '<div><span>Ce qu’il paiera d’ici la fin de la carte</span><strong>' + esc(money(p.capacite)) + '</strong></div>' +
           (p.depasse && montant > 0
