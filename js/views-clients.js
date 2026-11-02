@@ -208,11 +208,15 @@ function viewClient(id) {
   const st = clientStatus(client);
   const cards = cartesOf(client.id).sort(function (a, b) { return a.dateDebut.localeCompare(b.dateDebut); });
   const carte = selectedCard(client);
+  const doitCarte = carte ? cardTotals(carte).resteARembourser : 0;
 
   const paiements = recentPaymentsOf(client, 50);
   const donne = db.operations.filter(function (o) {
-    return o.type === 'sortie' && (o.categorie === 'retrait' || o.categorie === 'pret') && o.clientId === client.id;
+    return o.type === 'sortie' && o.categorie === 'retrait' && o.clientId === client.id;
   }).sort(function (a, b) { return b.date.localeCompare(a.date); });
+  const prets = db.operations.filter(function (o) {
+    return (o.categorie === 'pret' || o.categorie === 'remboursement') && o.clientId === client.id;
+  }).sort(function (a, b) { return b.date.localeCompare(a.date) || String(b.createdAt).localeCompare(String(a.createdAt)); });
   const recus = db.recus.filter(function (r) { return r.clientId === client.id; })
     .sort(function (a, b) { return String(b.at).localeCompare(String(a.at)); });
 
@@ -226,9 +230,11 @@ function viewClient(id) {
     '<h1 class="simple-title desktop-only">' + esc(client.nom) + '</h1>' +
     '<div class="simple-status ' + (st.doit > 0 ? 'late' : 'ok') + '">' +
       '<strong>' + (st.doit > 0 ? 'Doit ' + esc(money(st.doit)) : '✓ Ne doit rien') + '</strong>' +
-      (tot.resteARembourser > 0
-        ? '<span>Doit rembourser ' + esc(money(tot.resteARembourser)) + '</span>'
-        : '<span>Son argent : ' + esc(money(tot.solde)) + '</span>') +
+      (doitCarte > 0
+        ? '<span>Doit rembourser ' + esc(money(doitCarte)) + (cards.length > 1 ? ' sur cette carte' : '') + '</span>'
+        : tot.resteARembourser > 0
+          ? '<span>Doit rembourser ' + esc(money(tot.resteARembourser)) + ' sur une autre carte</span>'
+          : '<span>Son argent : ' + esc(money(tot.solde)) + '</span>') +
     '</div>' +
     (cards.length > 1
       ? '<div class="simple-chips card-switch">' + cards.map(function (c) {
@@ -252,9 +258,13 @@ function viewClient(id) {
     clientSection('donne', 'Argent donné', donne.length
       ? donne.map(function (o) {
           return line('data-action="open-receipt" data-op="' + esc(o.id) + '"', esc(money(o.montant)),
-            esc(fmtDate(o.date, 'medium')) + ' · ' + (o.categorie === 'pret' ? 'Prêt' : 'Argent rendu'), 'Reçu');
+            esc(fmtDate(o.date, 'medium')) + ' · Argent rendu', 'Reçu');
         }).join('')
       : nothing) +
+    (prets.length ? clientSection('prets', 'Ses prêts', prets.map(function (o) {
+      return line('data-action="open-receipt" data-op="' + esc(o.id) + '"', esc(money(o.montant)),
+        esc(fmtDate(o.date, 'medium')) + ' · ' + (o.categorie === 'pret' ? 'Prêt donné' : 'Remboursé') + (cards.length > 1 ? ' · ' + esc(o.snapshot && o.snapshot.carteLabel || '') : ''), 'Reçu');
+    }).join('')) : '') +
     clientSection('recus', 'Reçus', recus.length
       ? recus.map(function (r) {
           return line('data-action="open-recu" data-id="' + esc(r.id) + '"', esc(money(r.total)), esc(fmtDate(r.date, 'medium')), 'Voir');

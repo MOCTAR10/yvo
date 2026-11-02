@@ -10,6 +10,7 @@ function caisseRowHTML(m) {
   const what = m.kind === 'versement' ? 'A payé'
     : m.categorie === 'retrait' ? 'Argent rendu'
     : m.categorie === 'pret' ? 'Prêt'
+    : m.categorie === 'remboursement' ? 'Prêt remboursé'
     : m.categorie === 'depense' ? 'Dépense'
     : isIn ? 'Argent reçu' : 'Argent sorti';
   const title = m.clientNom || m.libelle;

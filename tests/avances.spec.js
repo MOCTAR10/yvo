@@ -1,6 +1,6 @@
 // Avance d'argent : Yvo donne plus que ce que le client a cotisé ; remboursement par les cotisations.
 const { test, expect } = require('@playwright/test');
-const { openApp } = require('./helpers');
+const { openApp, goto } = require('./helpers');
 
 test.describe('Avance d’argent', () => {
   let errors;
@@ -35,8 +35,8 @@ test.describe('Avance d’argent', () => {
     expect(r.caisse).toBe(before.caisse - montant);
 
     await page.evaluate(id => openReceipt(id), r.op.id);
-    await expect(page.locator('.receipt-title')).toHaveText('Reçu d’avance d’argent');
-    await expect(page.locator('.receipt-note')).toContainText('rembourse par mes cotisations');
+    await expect(page.locator('.receipt-title')).toHaveText('Reçu de prêt');
+    await expect(page.locator('.receipt-note')).toContainText('rembourse par mes paiements');
   });
 
   test('une ancienne avance avec des frais garde ses comptes et son reçu', async ({ page }) => {
@@ -84,7 +84,7 @@ test.describe('Avance d’argent', () => {
     await page.evaluate(c => openPretModal(c.clientId, c.id), carte);
     await page.fill('#pret-montant', String(caisse + 1));
     await page.click('button[form="form-pret"]');
-    await expect(page.locator('.toast').last()).toContainText('Caisse insuffisante');
+    await expect(page.locator('.toast').last()).toContainText('Pas assez d’argent');
     expect(await page.evaluate(() => db.operations.filter(o => o.categorie === 'pret').length)).toBe(0);
   });
 });
@@ -100,5 +100,70 @@ test('page du client : « Prêter de l’argent » dans le bouton +, et ce qu’
   await page.fill('#pret-montant', String(solde + 3000));
   await page.click('button[form="form-pret"]');
   await expect(page.locator('.simple-status')).toContainText('Doit rembourser 3 000');
+  expect(errors).toEqual([]);
+});
+
+test('un gros prêt : la carte passe sous zéro, puis il rembourse après la fin de la carte', async ({ page }) => {
+  const errors = await openApp(page, { demo: false });
+  const ids = await page.evaluate(() => {
+    db.settings.soldeInitial = 100000;
+    const t = todayISO();
+    db.clients.push({ id: 'c_p', nom: 'Awa Ndong', telephone: '077000000', quartier: 'Balise', actif: true });
+    db.cartes.push({ id: 'k_p', clientId: 'c_p', label: 'Carte 1', montantJournalier: 1000, dateDebut: t, dateFin: addDays(t, 4), statut: 'active' });
+    saveDB();
+    return { caisse: cashBalance() };
+  });
+  await goto(page, 'client/c_p');
+
+  // prêter plus que tout ce qu'il paiera : ce n'est pas bloqué, c'est dit clairement
+  await page.click('.fab');
+  await page.locator('.fab-item', { hasText: 'Prêter de l’argent' }).click();
+  await page.fill('#pret-montant', '20000');
+  await expect(page.locator('.pret-alert')).toContainText('il devra encore 15 000');
+  await expect(page.locator('.pret-alert')).toContainText('quand même');
+  await page.click('button[form="form-pret"]');
+  await expect(page.locator('.simple-status')).toContainText('Doit rembourser 20 000');
+  expect(await page.evaluate(() => cardTotals(carteById('k_p')).soldeBrut)).toBe(-20000);
+
+  // la carte se termine : le remboursement reste possible
+  await page.evaluate(() => { carteById('k_p').statut = 'cloturee'; saveDB(); rerender(); });
+  await page.click('.fab');
+  await expect(page.locator('.fab-item', { hasText: 'Recevoir l’argent' })).toHaveCount(0);
+  await page.locator('.fab-item', { hasText: 'Rembourser le prêt' }).click();
+  await expect(page.locator('#remb-montant')).toHaveValue('20000');
+
+  // pas plus que ce qu'il doit
+  await page.fill('#remb-montant', '25000');
+  await page.click('button[form="form-remboursement"]');
+  await expect(page.locator('.toast').last()).toContainText('il doit seulement 20 000');
+  expect(await page.evaluate(() => db.operations.filter(o => o.categorie === 'remboursement').length)).toBe(0);
+
+  await page.fill('#remb-montant', '8000');
+  await page.locator('.mode-opt.mode-moov').click();
+  await page.click('button[form="form-remboursement"]');
+  await expect(page.locator('.simple-status')).toContainText('Doit rembourser 12 000');
+  const r = await page.evaluate(() => ({ brut: cardTotals(carteById('k_p')).soldeBrut, caisse: cashBalance(), moov: cashByMode().moov, jours: versementsOf('k_p').length }));
+  expect(r).toEqual({ brut: -12000, caisse: ids.caisse - 20000 + 8000, moov: 8000, jours: 0 });
+
+  // il apparaît dans les clients à appeler, puisque rien ne rembourse tout seul
+  await goto(page, 'risques');
+  await expect(page.locator('.relance')).toContainText('Prêt 12 000');
+
+  // reçu, et l'erreur se corrige
+  await goto(page, 'client/c_p');
+  await page.evaluate(() => { const o = db.operations.find(x => x.categorie === 'remboursement'); openReceipt(o.id); });
+  await expect(page.locator('.receipt-title')).toHaveText('Reçu de remboursement');
+  await expect(page.locator('.receipt')).toContainText('12 000');
+  await page.locator('.modal-body [data-action="delete-op"]').click();
+  await page.click('[data-action="confirm-delete-op"]');
+  await expect(page.locator('.simple-status')).toContainText('Doit rembourser 20 000');
+
+  // tout rembourser : il ne doit plus rien et le bouton s'en va
+  await page.click('.fab');
+  await page.locator('.fab-item', { hasText: 'Rembourser le prêt' }).click();
+  await page.click('button[form="form-remboursement"]');
+  await expect(page.locator('.simple-status')).toContainText('Son argent');
+  await page.click('.fab');
+  await expect(page.locator('.fab-item', { hasText: 'Rembourser le prêt' })).toHaveCount(0);
   expect(errors).toEqual([]);
 });

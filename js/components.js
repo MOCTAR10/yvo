@@ -223,6 +223,7 @@ function receiptHTML(op) {
   const soldeApres = snap.soldeApres != null ? snap.soldeApres : 0;
   const montant = Number(op.montant) || 0;
   const isPret = op.categorie === 'pret';
+  const isRemb = op.categorie === 'remboursement';
   const frais = Number(op.frais) || 0;
 
   return '<div id="receipt-print" class="receipt">' +
@@ -246,7 +247,7 @@ function receiptHTML(op) {
       (company.email ? '<span>' + esc(company.email) + '</span>' : '') +
       '<span>' + esc([company.adresse, company.ville].filter(Boolean).join(', ')) + '</span>' +
     '</div>' +
-    '<div class="receipt-title">' + (isPret ? 'Reçu d’avance d’argent' : 'Reçu de paiement au client') + '</div>' +
+    '<div class="receipt-title">' + (isPret ? 'Reçu de prêt' : isRemb ? 'Reçu de remboursement' : 'Reçu de paiement au client') + '</div>' +
     '<div class="receipt-grid">' +
       '<div><span>Client</span><strong>' + esc(nom) + '</strong></div>' +
       '<div><span>Téléphone</span><strong>' + esc(tel || '—') + '</strong></div>' +
@@ -254,7 +255,7 @@ function receiptHTML(op) {
       '<div><span>Pièce d’identité</span><strong>' + esc(piece || '—') + '</strong></div>' +
       '<div class="span2"><span>Adresse</span><strong>' + esc(adresse || '—') + '</strong></div>' +
     '</div>' +
-    (isPret ? pretReceiptBody(op, nom, carteLabel, snap, montant, frais, company) : (
+    (isPret ? pretReceiptBody(op, nom, carteLabel, snap, montant, frais, company) : isRemb ? rembReceiptBody(op, nom, carteLabel, snap, montant, company) : (
     '<table class="receipt-table">' +
       '<thead><tr><th>Désignation</th><th>Détails</th><th class="right">Montant</th></tr></thead>' +
       '<tbody>' +
@@ -281,20 +282,33 @@ function receiptHTML(op) {
 }
 
 /* Corps du reçu d'avance : le client reconnaît la dette et son remboursement par cotisations. */
+function rembReceiptBody(op, nom, carteLabel, snap, montant, company) {
+  return '<table class="receipt-table">' +
+      '<thead><tr><th>Désignation</th><th>Détails</th><th class="right">Montant</th></tr></thead>' +
+      '<tbody>' +
+        '<tr class="receipt-pay"><td>Prêt remboursé</td><td>' + esc(op.mode || 'Espèces') + '</td><td class="right">' + esc(money(montant)) + '</td></tr>' +
+        '<tr><td>Reste à rembourser</td><td>' + esc(carteLabel) + '</td><td class="right">' + esc(money(snap.doitApres || 0)) + '</td></tr>' +
+      '</tbody>' +
+    '</table>' +
+    '<div class="receipt-amount"><span>Montant reçu</span><strong>' + esc(money(montant)) + '</strong></div>' +
+    '<p class="receipt-note"><strong>' + esc(company.nom || 'Le collecteur') + '</strong> a reçu de <strong>' + esc(nom) + '</strong> la somme de <strong>' + esc(money(montant)) +
+      '</strong> pour rembourser le prêt de la carte <strong>' + esc(carteLabel) + '</strong>.</p>';
+}
+
 function pretReceiptBody(op, nom, carteLabel, snap, montant, frais, company) {
   return '<table class="receipt-table">' +
       '<thead><tr><th>Désignation</th><th>Détails</th><th class="right">Montant</th></tr></thead>' +
       '<tbody>' +
         '<tr><td>' + esc(carteLabel) + '</td><td>' + esc(numberFR(snap.montantJournalier || 0)) + ' / jour, jusqu’au ' + esc(fmtDate(snap.dateFin, 'short')) + '</td><td class="right">' + esc(money(snap.totalVerse || 0)) + '</td></tr>' +
-        '<tr class="receipt-pay"><td>Avance remise</td><td>' + esc(op.mode || 'Espèces') + '</td><td class="right">' + esc(money(montant)) + '</td></tr>' +
+        '<tr class="receipt-pay"><td>Prêt remis</td><td>' + esc(op.mode || 'Espèces') + '</td><td class="right">' + esc(money(montant)) + '</td></tr>' +
         (frais > 0 ? '<tr><td>Frais</td><td>' + esc(op.fraisRegle && op.fraisRegle.type === 'pct' ? op.fraisRegle.valeur + ' %' : 'Montant fixe') + '</td><td class="right">' + esc(money(frais)) + '</td></tr>' : '') +
-        '<tr><td>Reste à rembourser</td><td>Par les prochaines cotisations</td><td class="right">' + esc(money(snap.doitApres || 0)) + '</td></tr>' +
+        '<tr><td>Reste à rembourser</td><td>Par ses prochains paiements</td><td class="right">' + esc(money(snap.doitApres || 0)) + '</td></tr>' +
       '</tbody>' +
     '</table>' +
-    '<div class="receipt-amount"><span>Avance remise</span><strong>' + esc(money(montant)) + '</strong></div>' +
+    '<div class="receipt-amount"><span>Prêt remis</span><strong>' + esc(money(montant)) + '</strong></div>' +
     '<p class="receipt-note">Je soussigné(e) <strong>' + esc(nom) + '</strong> reconnais avoir reçu de <strong>' + esc(company.nom || 'mon collecteur') +
-      '</strong> une avance de <strong>' + esc(money(montant)) + '</strong>' + (frais > 0 ? ' (frais : ' + esc(money(frais)) + ')' : '') +
-      ', que je rembourse par mes cotisations sur la carte <strong>' + esc(carteLabel) + '</strong>.</p>';
+      '</strong> un prêt de <strong>' + esc(money(montant)) + '</strong>' + (frais > 0 ? ' (frais : ' + esc(money(frais)) + ')' : '') +
+      ', que je rembourse par mes paiements sur la carte <strong>' + esc(carteLabel) + '</strong>.</p>';
 }
 
 function openReceipt(opId) {
@@ -304,10 +318,12 @@ function openReceipt(opId) {
     return;
   }
   openModal({
-    title: op.categorie === 'pret' ? 'Reçu d’avance d’argent' : 'Reçu de paiement',
+    title: op.categorie === 'pret' ? 'Reçu de prêt' : op.categorie === 'remboursement' ? 'Reçu de remboursement' : 'Reçu de paiement',
     subtitle: 'Accusé de réception · ' + esc(op.recuNumero || ''),
     size: 'large',
-    body: receiptHTML(op),
+    body: receiptHTML(op) + (op.categorie === 'pret' || op.categorie === 'remboursement'
+      ? '<button type="button" class="btn ghost simple-minor no-print" data-action="delete-op" data-op="' + esc(op.id) + '">C’est une erreur : supprimer</button>'
+      : ''),
     footer: '<button type="button" class="btn ghost" data-action="close-modal">Fermer</button>' +
       '<button type="button" class="btn primary" data-action="print-receipt">' + icon('printer', 16) + ' Imprimer</button>'
   });

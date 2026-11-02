@@ -5,7 +5,7 @@
    ============================================================ */
 
 const DB_KEY = 'yvo.epargne.db.v1';
-const APP_VERSION = '4.0.3';
+const APP_VERSION = '4.0.4';
 const DB_SCHEMA = 2;
 const CURRENCIES = ['FCFA', '€', '$', 'MAD', 'GNF', 'CDF', 'CHF'];
 
@@ -145,7 +145,8 @@ function movementAmountForMode(m, filter) {
 const CAT_LABELS = {
   versement: 'Versement',
   retrait: 'Retrait client',
-  pret: 'Avance d’argent',
+  pret: 'Prêt',
+  remboursement: 'Prêt remboursé',
   apport: 'Apport',
   depense: 'Dépense',
   prelevement: 'Prélèvement',
@@ -627,10 +628,12 @@ function cardTotals(carte) {
   const prets = db.operations.filter(function (o) { return o.categorie === 'pret' && o.carteId === carte.id; });
   const totalPret = sum(prets, function (o) { return o.montant; });
   const fraisPret = sum(prets, function (o) { return o.frais; });
+  /* remboursements faits à part : ils ne touchent pas le calendrier */
+  const totalRembourse = sum(db.operations.filter(function (o) { return o.categorie === 'remboursement' && o.carteId === carte.id; }), function (o) { return o.montant; });
   const jours = periodDays(carte.dateDebut, carte.dateFin);
   const objectif = jours * (Number(carte.montantJournalier) || 0);
   const manquant = Math.max(0, objectif - totalVerse);
-  const soldeBrut = totalVerse - totalRetire - totalPret - fraisPret;
+  const soldeBrut = totalVerse - totalRetire - totalPret - fraisPret + totalRembourse;
   const solde = Math.max(0, soldeBrut);
   const today = todayISO();
   const ecoules = clamp(diffDays(carte.dateDebut, today) + 1, 0, jours);
@@ -655,6 +658,7 @@ function cardTotals(carte) {
     solde: solde,
     totalPret: totalPret,
     fraisPret: fraisPret,
+    totalRembourse: totalRembourse,
     soldeBrut: soldeBrut,
     resteARembourser: Math.max(0, -soldeBrut),
     progression: objectif > 0 ? Math.min(100, (totalVerse / objectif) * 100) : 0,

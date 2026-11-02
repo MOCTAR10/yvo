@@ -4,19 +4,23 @@ function relanceRowHTML(client, risk) {
   return '<a class="relance" href="#/client/' + esc(client.id) + '">' +
     '<span class="relance-main"><span><strong>' + esc(client.nom) + '</strong>' +
       '<em>' + esc([client.telephone, client.quartier].filter(Boolean).join(' · ')) + '</em></span></span>' +
-    '<span class="relance-side"><strong class="red">Doit ' + esc(money(risk.retard, true)) + '</strong></span>' +
+    '<span class="relance-side"><strong class="red">' + (risk.retard > 0 ? 'Doit ' + esc(money(risk.retard, true)) : 'Prêt ' + esc(money(risk.pret, true))) + '</strong></span>' +
   '</a>';
 }
 
 function viewRisques() {
   const late = db.clients.filter(function (c) { return c.actif !== false; })
-    .map(function (c) { return { client: c, risk: clientRisk(c), doit: clientStatus(c).doit }; })
-    .filter(function (x) { return x.doit > 0; })
-    .sort(function (a, b) { return b.doit - a.doit; });
+    .map(function (c) {
+      /* un prêt sans carte en cours ne se rembourse pas tout seul : il faut l'appeler */
+      const enCours = cartesOf(c.id).some(function (k) { return dueOn(k, todayISO()); });
+      return { client: c, risk: clientRisk(c), doit: clientStatus(c).doit, pret: enCours ? 0 : clientTotals(c).resteARembourser };
+    })
+    .filter(function (x) { return x.doit > 0 || x.pret > 0; })
+    .sort(function (a, b) { return (b.doit + b.pret) - (a.doit + a.pret); });
   return '<div class="page simple-page">' +
     '<h1 class="simple-title">Clients à appeler</h1>' +
     (late.length
-      ? '<div class="relance-list">' + late.map(function (x) { return relanceRowHTML(x.client, Object.assign({}, x.risk, { retard: x.doit })); }).join('') + '</div>'
+      ? '<div class="relance-list">' + late.map(function (x) { return relanceRowHTML(x.client, Object.assign({}, x.risk, { retard: x.doit, pret: x.pret })); }).join('') + '</div>'
       : '<div class="simple-done">✓ Personne ne doit d’argent</div>') +
   '</div>';
 }

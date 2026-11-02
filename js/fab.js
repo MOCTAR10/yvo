@@ -25,8 +25,10 @@ function fabItems() {
     const t = todayISO();
     const dueToday = client.actif !== false && carte && dueOn(carte, t);
     const resteJour = dueToday ? cardToday(carte, client).reste : 0;
+    const restePret = carte ? cardTotals(carte).resteARembourser : 0;
     return [
       dueToday ? fabAction('Recevoir l’argent' + (resteJour > 0 ? ' · ' + money(resteJour) : ''), 'data-action="open-pay" data-client="' + id + '" data-carte="' + esc(carte.id) + '" data-date="' + esc(t) + '"') : '',
+      restePret > 0 ? fabAction('Rembourser le prêt · ' + money(restePret), 'data-action="new-remboursement" data-client="' + id + '" data-carte="' + esc(carte.id) + '"') : '',
       clientTotals(client).solde > 0 ? fabAction('Rendre son argent', 'data-action="new-retrait" data-client="' + id + '"' + (carte ? ' data-carte="' + esc(carte.id) + '"' : '')) : '',
       carte && carte.statut === 'active' ? fabAction('Prêter de l’argent', 'data-action="new-pret" data-client="' + id + '" data-carte="' + esc(carte.id) + '"') : '',
       fabAction('Ajouter une carte', 'data-action="new-carte" data-client="' + id + '"'),

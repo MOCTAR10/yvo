@@ -518,7 +518,7 @@ function handleAction(action, el, e) {
             title: 'Terminer cette carte ?',
             tone: 'red',
             icon: 'alert',
-            message: 'Ce client doit encore <strong>' + esc(money(reste)) + '</strong> sur un prêt. Si la carte est terminée, ses paiements ne rembourseront plus ce prêt.',
+            message: 'Ce client doit encore <strong>' + esc(money(reste)) + '</strong> sur un prêt. Si la carte est terminée, il pourra quand même rembourser : bouton +, « Rembourser le prêt ».',
             label: 'Terminer quand même',
             action: 'confirm-toggle-carte',
             data: 'data-carte="' + esc(carte.id) + '"'
@@ -621,6 +621,10 @@ function handleAction(action, el, e) {
 
     case 'new-pret':
       if (clientId) openPretModal(clientId, carteId);
+      break;
+
+    case 'new-remboursement':
+      if (clientId && carteId) openRemboursementModal(clientId, carteId);
       break;
 
     case 'print-receipt':
@@ -897,6 +901,11 @@ function handleForm(type, form, submitter) {
         input.focus();
       }
     });
+    return;
+  }
+
+  if (type === 'save-remboursement') {
+    saveRemboursement(form);
     return;
   }
 

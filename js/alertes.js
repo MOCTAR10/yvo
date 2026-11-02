@@ -121,11 +121,11 @@ function computeAlerts() {
   }
 
   /* 14 bis. Carte clôturée qui doit encore une avance d'argent */
-  const avancesBloquees = db.cartes.filter(function (c) { return c.statut !== 'active' && cardTotals(c).resteARembourser > 0; });
+  const avancesBloquees = db.cartes.filter(function (c) { return (c.statut !== 'active' || todayISO() > c.dateFin) && cardTotals(c).resteARembourser > 0; });
   if (avancesBloquees.length) {
     const c0 = avancesBloquees[0];
     add('important', 'avance-cloturee', avancesBloquees.length + ' prêt(s) sur une carte terminée',
-      'Le client doit encore rembourser. Reprenez la carte ou voyez avec lui.', '#/client/' + c0.clientId, avancesBloquees.length);
+      'Le client doit encore rembourser. Page du client, bouton +, « Rembourser le prêt ».', '#/client/' + c0.clientId, avancesBloquees.length);
   }
 
   /* 15. Reçus altérés */
