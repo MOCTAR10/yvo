@@ -65,7 +65,8 @@ function openPaySheet(clientId, date, focusCarteId) {
   openModal({
     cls: 'pay-sheet simple-sheet',
     title: client.nom,
-    subtitle: isToday ? 'Aujourd’hui' : esc(capitalize(fmtDate(date, 'long'))),
+    subtitle: (isToday ? 'Aujourd’hui' : esc(capitalize(fmtDate(date, 'long')))) +
+      (focusCarteId && cartesOf(clientId).length > 1 ? ' · ' + esc(cards[0].label) : ''),
     body:
       '<form id="form-pay" data-form="save-pay" autocomplete="off">' +
         '<input type="hidden" name="clientId" value="' + esc(clientId) + '">' +

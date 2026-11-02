@@ -67,7 +67,7 @@ test('le bouton + change selon l’écran', async ({ page }) => {
 
   await goto(page, 'tresorerie');
   await page.click('.fab');
-  await expect(page.locator('.fab-item')).toHaveText(['J’ai reçu de l’argent', 'J’ai dépensé de l’argent', 'Rendre l’argent à un client', 'Compter mon argent']);
+  await expect(page.locator('.fab-item')).toHaveText(['Entrée d’argent', 'Sortie d’argent', 'Rendre l’argent à un client', 'Compter mon argent']);
   await page.locator('.fab-item', { hasText: 'Compter mon argent' }).click();
   await expect(page).toHaveURL(/#\/cloture/);
   await expect(page.locator('#form-cloture')).toBeVisible();
@@ -93,7 +93,8 @@ test('ajouter un client : trois questions, une tuile touchée, le calendrier est
   const errors = await openApp(page, { demo: false });
   await page.click('.fab');
   await page.locator('.fab-item', { hasText: 'Ajouter un client' }).click();
-  await expect(page.locator('#form-client .form-more')).not.toHaveAttribute('open', '');
+  await expect(page.locator('#form-client input:not([type="hidden"])')).toHaveCount(3);
+  await expect(page.locator('#form-client .form-more')).toHaveCount(0);
   await page.fill('input[name="nom"]', 'Paul Obame');
   await page.fill('input[name="telephone"]', '062987654');
   await page.fill('input[name="quartier"]', 'Balise');
@@ -105,7 +106,9 @@ test('ajouter un client : trois questions, une tuile touchée, le calendrier est
 
   await expect(page.locator('.modal')).toHaveCount(0);
   await expect(page.locator('.simple-cal')).toBeVisible();
-  await expect(page.locator('.simple-big')).toContainText('1 000');
+  await page.click('.fab');
+  await expect(page.locator('.fab-item', { hasText: 'Recevoir l’argent' })).toContainText('1 000');
+  expect(await page.evaluate(() => db.clients[0].actif)).toBe(true);
   const carte = await page.evaluate(() => db.cartes[0]);
   expect(carte).toMatchObject({ label: 'Carte 1', montantJournalier: 1000, statut: 'active' });
   expect(carte.typeId).toBeUndefined();
@@ -123,7 +126,9 @@ test('une deuxième carte en deux touches, avec une autre durée et un autre mon
   await goto(page, 'client/' + id);
   await page.click('.fab');
   await page.locator('.fab-item', { hasText: 'Ajouter une carte' }).click();
-  await page.click('[data-action="picker-duree"][data-mois="3"]');
+  await page.locator('.duree-step[data-delta="1"]').click();
+  await page.locator('.duree-step[data-delta="1"]').click();
+  await expect(page.locator('.duree-n')).toHaveValue('3');
   await page.locator('.carte-tile[data-montant="2000"]').click();
   await expect(page.locator('.card-switch .chip')).toHaveCount(2);
   const c2 = await page.evaluate(() => db.cartes.at(-1));
@@ -134,7 +139,7 @@ test('une deuxième carte en deux touches, avec une autre durée et un autre mon
   await page.locator('.fab-item', { hasText: 'Ajouter une carte' }).click();
   await page.click('[data-action="carte-autre"]');
   await page.fill('input[name="montantJournalier"]', '750');
-  await page.click('[data-action="carte-duree"][data-mois="6"]');
+  await page.fill('.duree-n', '6');
   await page.click('button[form="form-carte"]');
   await expect(page.locator('.card-switch .chip')).toHaveCount(3);
   // le montant utilisé est proposé la fois suivante, sans réglage
@@ -157,6 +162,112 @@ test('les commissions n’existent plus : une ancienne carte garde tout son arge
   expect(errors).toEqual([]);
 });
 
+test('durée souple : jours, semaines, mois, ans, et le dernier jour suit', async ({ page }) => {
+  const errors = await openApp(page, { demo: false });
+  const r = await page.evaluate(() => [
+    endAfterDuree('2026-11-01', 10, 'jour'), endAfterDuree('2026-11-01', 2, 'semaine'), endAfterDuree('2026-11-01', 3, 'mois'), endAfterDuree('2026-11-01', 1, 'an'),
+    dureeFromDates('2026-11-01', '2027-04-30'), dureeFromDates('2026-11-01', '2027-10-31'), dureeFromDates('2026-11-01', '2026-11-14'), dureeFromDates('2026-11-01', '2026-11-10'), dureeFromDates('2026-11-01', '2026-11-01')
+  ]);
+  expect(r).toEqual(['2026-11-10', '2026-11-14', '2027-01-31', '2027-10-31',
+    { n: 6, unit: 'mois' }, { n: 1, unit: 'an' }, { n: 2, unit: 'semaine' }, { n: 10, unit: 'jour' }, { n: 1, unit: 'jour' }]);
+
+  const id = await page.evaluate(() => {
+    const c = { id: 'c_d', nom: 'Awa', telephone: '077000000', quartier: 'Balise', actif: true };
+    db.clients.push(c);
+    db.cartes.push({ id: 'k_d', clientId: c.id, label: 'Carte 1', montantJournalier: 1000, dateDebut: '2026-11-01', dateFin: '2027-04-30', statut: 'active' });
+    saveDB();
+    return c.id;
+  });
+  await page.evaluate(i => openCarteModal(i, carteById('k_d')), id);
+  // à l'ouverture la durée se lit, et rien ne change tout seul
+  await expect(page.locator('.duree-n')).toHaveValue('6');
+  await expect(page.locator('.duree-units .active')).toHaveText('Mois');
+  await expect(page.locator('#carte-fin')).toHaveValue('2027-04-30');
+  // la durée change le dernier jour
+  await page.click('[data-unit="semaine"]');
+  await page.fill('.duree-n', '2');
+  await expect(page.locator('#carte-fin')).toHaveValue('2026-11-14');
+  await expect(page.locator('.duree-fin')).toContainText('14 novembre 2026');
+  // le premier jour décale le dernier
+  await page.fill('#carte-debut', '2026-11-08');
+  await page.locator('#carte-debut').blur();
+  await expect(page.locator('#carte-fin')).toHaveValue('2026-11-21');
+  // un dernier jour écrit à la main met à jour la durée
+  await page.fill('#carte-fin', '2026-11-17');
+  await page.locator('#carte-fin').blur();
+  await expect(page.locator('.duree-n')).toHaveValue('10');
+  await expect(page.locator('.duree-units .active')).toHaveText('Jours');
+  await page.click('button[form="form-carte"]');
+  expect(await page.evaluate(() => { const k = carteById('k_d'); return [k.dateDebut, k.dateFin]; })).toEqual(['2026-11-08', '2026-11-17']);
+  expect(errors).toEqual([]);
+});
+
+test('nouvelle carte de 2 semaines par les tuiles, sans clavier qui s’ouvre', async ({ page }) => {
+  const errors = await openApp(page, { demo: false });
+  const id = await page.evaluate(() => { const c = { id: 'c_e', nom: 'Awa', telephone: '077000000', quartier: 'Balise', actif: true }; db.clients.push(c); saveDB(); return c.id; });
+  await page.evaluate(i => openCartePicker(i), id);
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => document.activeElement.tagName === 'INPUT')).toBe(false);
+  await page.click('[data-unit="semaine"]');
+  await page.locator('.duree-step[data-delta="1"]').click();
+  await page.locator('.carte-tile[data-montant="1000"]').click();
+  const r = await page.evaluate(() => { const k = db.cartes.at(-1); return [k.dateFin, addDays(k.dateDebut, 13)]; });
+  expect(r[0]).toBe(r[1]);
+  expect(errors).toEqual([]);
+});
+
+test('le filtre Quartier est toujours là, même avec un seul quartier', async ({ page }) => {
+  const errors = await openApp(page, { demo: false });
+  await goto(page, 'clients');
+  await expect(page.locator('#client-quartier')).toBeVisible();
+  await page.evaluate(() => {
+    db.clients.push({ id: 'c_q1', nom: 'Awa', telephone: '077000000', quartier: 'Balise', actif: true }, { id: 'c_q2', nom: 'Jean', telephone: '077000001', quartier: ' Balise ', actif: true });
+    saveDB(); rerender();
+  });
+  await expect(page.locator('#client-quartier option')).toHaveText(['Tous les quartiers', 'Balise']);
+  await page.selectOption('#client-quartier', 'Balise');
+  await expect(page.locator('.crow2')).toHaveCount(2);
+  // un quartier qui n'existe plus ne laisse pas une liste vide
+  await page.evaluate(() => { db.clients.forEach(c => { c.quartier = 'Matanda'; }); saveDB(); rerender(); });
+  await expect(page.locator('.crow2')).toHaveCount(2);
+  await expect(page.locator('#client-quartier')).toHaveValue('tous');
+  expect(errors).toEqual([]);
+});
+
+test('aucune feuille n’a de bouton coupé sur le côté', async ({ page }) => {
+  const errors = await openApp(page);
+  const ids = await page.evaluate(() => {
+    const k = dueCards(todayISO())[0];
+    return { client: k.clientId, carte: k.id, riche: db.clients.find(c => clientTotals(c).solde > 0).id };
+  });
+  await goto(page, 'client/' + ids.client);
+  const ouvertures = [
+    i => openCarteModal(i.client, carteById(i.carte)),
+    i => openCarteModal(i.client, null),
+    i => openCarteModal(i.client, null, true),
+    i => openClientModal(clientById(i.client)),
+    i => openClientModal(),
+    i => openPaySheet(i.client, todayISO(), i.carte),
+    i => openDayModal(i.carte, todayISO()),
+    i => openPretModal(i.client, i.carte),
+    i => openRetraitModal({ clientId: i.riche }),
+    () => openOperationModal('entree'),
+    () => openOperationModal('sortie'),
+    () => openFabSheet()
+  ];
+  for (const ouvrir of ouvertures) {
+    await page.evaluate(ouvrir, ids);
+    await expect(page.locator('.modal')).toBeVisible();
+    await page.waitForTimeout(350);
+    const coupes = await page.evaluate(() => [...document.querySelectorAll('.modal-foot > *, .modal-body button')]
+      .filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.left < -1 || r.right > innerWidth + 1); })
+      .map(e => e.textContent.trim()));
+    expect(coupes).toEqual([]);
+    await page.evaluate(() => closeModal());
+  }
+  expect(errors).toEqual([]);
+});
+
 test('durée d’une carte : le dernier jour tombe la veille, même en fin de mois', async ({ page }) => {
   await openApp(page, { demo: false });
   const r = await page.evaluate(() => [endAfterMonths('2026-11-01', 1), endAfterMonths('2026-01-15', 12), endAfterMonths('2026-11-30', 3)]);
@@ -172,6 +283,29 @@ test('Changer une carte : terminer ou supprimer se fait dans sa fiche', async ({
   await expect(page.locator('#form-carte')).toBeVisible();
   await expect(page.locator('[data-action="toggle-carte"]')).toContainText('Terminer');
   await expect(page.locator('[data-action="delete-carte"]')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('sur téléphone, la barre du bas reste petite et facile à toucher', async ({ page, isMobile }) => {
+  test.skip(!isMobile);
+  await openApp(page);
+  const nav = await page.locator('.bottom-nav').boundingBox();
+  const link = await page.locator('.bottom-link').first().boundingBox();
+  expect(nav.height).toBeLessThanOrEqual(64);
+  expect(link.height).toBeGreaterThanOrEqual(44);
+  const fab = await page.locator('.fab').boundingBox();
+  expect(fab.y + fab.height).toBeLessThanOrEqual(nav.y);
+});
+
+test('Clients à appeler : le numéro est écrit, sans bouton Appeler ni WhatsApp', async ({ page }) => {
+  const errors = await openApp(page);
+  await goto(page, 'risques');
+  await expect(page.locator('.relance').first()).toBeVisible();
+  const tel = await page.evaluate(() => db.clients.filter(c => c.actif !== false && clientStatus(c).doit > 0).sort((a, b) => clientStatus(b).doit - clientStatus(a).doit)[0].telephone);
+  await expect(page.locator('.relance').first()).toContainText(tel);
+  await expect(page.locator('#view a[href^="tel:"], #view a[href*="wa.me"]')).toHaveCount(0);
+  await page.locator('.relance').first().click();
+  await expect(page).toHaveURL(/#\/client\//);
   expect(errors).toEqual([]);
 });
 
@@ -221,16 +355,28 @@ test('la caisse n’écrit jamais « −0 »', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('dépense : « Pour moi » est gardé à part', async ({ page }) => {
+test('sortie d’argent : deux réponses, et plus de choix « Pour moi »', async ({ page }) => {
   const errors = await openApp(page);
   await goto(page, 'tresorerie');
   await page.evaluate(() => openOperationModal('sortie'));
+  await expect(page.locator('.modal')).toContainText('Sortie d’argent');
+  await expect(page.locator('.simple-radio')).toHaveCount(0);
   await page.fill('#form-operation input[name="montant"]', '1000');
-  await page.fill('#form-operation input[name="libelle"]', 'Ma part');
-  await page.locator('.simple-radio span', { hasText: 'Pour moi' }).click();
+  await page.fill('#form-operation input[name="libelle"]', 'Transport');
   await page.click('button[form="form-operation"]');
   const op = await page.evaluate(() => db.operations.at(-1));
-  expect(op).toMatchObject({ categorie: 'prelevement', libelle: 'Ma part', montant: 1000, date: await page.evaluate(() => todayISO()) });
+  expect(op).toMatchObject({ type: 'sortie', categorie: 'depense', libelle: 'Transport', montant: 1000 });
+  expect(errors).toEqual([]);
+});
+
+test('entrée d’argent : un client qui paie est envoyé vers ses clients', async ({ page }) => {
+  const errors = await openApp(page);
+  await goto(page, 'tresorerie');
+  await page.evaluate(() => openOperationModal('entree'));
+  await expect(page.locator('.modal')).toContainText('Entrée d’argent');
+  await page.locator('.modal-body [data-href="#/clients"]').click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(page.locator('#client-quartier')).toBeVisible();
   expect(errors).toEqual([]);
 });
 

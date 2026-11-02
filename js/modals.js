@@ -21,7 +21,7 @@ function openClientModal(client) {
         '<label class="field"><span>Son quartier</span><input name="quartier" required list="quartiers-list" value="' + esc(c.quartier) + '" placeholder="Ex. Grand Village"><datalist id="quartiers-list">' +
           quartiers.map(function (q) { return '<option value="' + esc(q) + '"></option>'; }).join('') +
         '</datalist></label>' +
-        '<details class="simple-sec form-more"><summary>Plus d’informations (pas obligatoire)</summary><div class="form-grid">' +
+        (isEdit ? '<details class="simple-sec form-more"><summary>Plus d’informations (pas obligatoire)</summary><div class="form-grid">' +
           '<label class="field"><span>Autre téléphone</span><input name="telephone2" type="tel" value="' + esc(c.telephone2 || '') + '"></label>' +
           '<label class="field"><span>Métier</span><input name="profession" value="' + esc(c.profession || '') + '" placeholder="Ex. Commerçante"></label>' +
           '<label class="field span2"><span>Adresse</span><input name="adresse" value="' + esc(c.adresse || '') + '" placeholder="Ex. près du marché, Port-Gentil"></label>' +
@@ -37,7 +37,7 @@ function openClientModal(client) {
             '<option value="0"' + (c.actif === false ? ' selected' : '') + '>Non</option>' +
           '</select></label>' +
           '<label class="field span2"><span>Notes</span><textarea name="notes" rows="3">' + esc(c.notes || '') + '</textarea></label>' +
-        '</div></details>' +
+        '</div></details>' : '') +
       '</form>',
     footer: '<button type="submit" form="form-client" class="btn primary simple-big">Enregistrer</button>'
   });
@@ -50,6 +50,88 @@ function endAfterMonths(debut, mois) {
   /* Le mois d'arrivée est plus court : on s'arrête à son dernier jour. */
   const jour = p[2] > dernier ? dernier : p[2] - 1;
   return isoOf(new Date(p[0], p[1] - 1 + Number(mois), jour));
+}
+
+/* Durée d'une carte : un nombre et une unité. Le dernier jour est compris. */
+const DUREE_UNITS = [['jour', 'Jours'], ['semaine', 'Semaines'], ['mois', 'Mois'], ['an', 'Ans']];
+
+function endAfterDuree(debut, n, unit) {
+  const k = Math.max(1, Math.round(Number(n)) || 1);
+  if (unit === 'jour') return addDays(debut, k - 1);
+  if (unit === 'semaine') return addDays(debut, k * 7 - 1);
+  if (unit === 'an') return endAfterMonths(debut, k * 12);
+  return endAfterMonths(debut, k);
+}
+
+/* Retrouve la façon la plus simple de dire la durée entre deux dates. */
+function dureeFromDates(debut, fin) {
+  for (let k = 1; k <= 600; k += 1) {
+    if (endAfterMonths(debut, k) === fin) return k % 12 === 0 ? { n: k / 12, unit: 'an' } : { n: k, unit: 'mois' };
+  }
+  const days = Math.round((new Date(fin + 'T12:00:00') - new Date(debut + 'T12:00:00')) / 86400000) + 1;
+  if (days > 0 && days % 7 === 0) return { n: days / 7, unit: 'semaine' };
+  return { n: Math.max(1, days), unit: 'jour' };
+}
+
+function dureeHTML(n, unit) {
+  return '<div class="duree">' +
+    '<div class="duree-row">' +
+      '<button type="button" class="duree-step" data-action="duree-step" data-delta="-1" aria-label="Moins">−</button>' +
+      '<input class="duree-n" type="number" inputmode="numeric" min="1" max="999" step="1" value="' + n + '" aria-label="Durée">' +
+      '<button type="button" class="duree-step" data-action="duree-step" data-delta="1" aria-label="Plus">+</button>' +
+    '</div>' +
+    '<div class="duree-units">' + DUREE_UNITS.map(function (u) {
+      return '<button type="button" class="' + (u[0] === unit ? 'active' : '') + '" data-action="duree-unit" data-unit="' + u[0] + '">' + u[1] + '</button>';
+    }).join('') + '</div>' +
+    '<p class="duree-fin"></p>' +
+  '</div>';
+}
+
+function dureeDebut() {
+  const d = document.getElementById('carte-debut');
+  return d && d.value ? d.value : todayISO();
+}
+
+function dureeFin(box) {
+  const unit = box.querySelector('.duree-units .active');
+  return endAfterDuree(dureeDebut(), box.querySelector('.duree-n').value, unit ? unit.getAttribute('data-unit') : 'mois');
+}
+
+/* Écrit le dernier jour à partir de la durée choisie. */
+function syncDuree() {
+  const box = document.querySelector('.duree');
+  if (!box) return;
+  const fin = dureeFin(box);
+  const champ = document.getElementById('carte-fin');
+  if (champ) champ.value = fin;
+  box.querySelector('.duree-fin').textContent = 'Jusqu’au ' + fmtDate(fin, 'long');
+}
+
+function mountDuree() {
+  const box = document.querySelector('.duree');
+  if (!box) return;
+  box.querySelector('.duree-n').addEventListener('input', function () { if (this.value !== '') syncDuree(); });
+  box.querySelector('.duree-n').addEventListener('change', function () {
+    this.value = Math.min(999, Math.max(1, Math.round(Number(this.value)) || 1));
+    syncDuree();
+  });
+  const debut = document.getElementById('carte-debut');
+  const fin = document.getElementById('carte-fin');
+  if (debut) debut.addEventListener('change', syncDuree);
+  if (fin) {
+    /* Une date écrite à la main : le nombre et l'unité suivent. */
+    fin.addEventListener('change', function () {
+      if (!fin.value || fin.value < dureeDebut()) {
+        box.querySelector('.duree-fin').textContent = 'Le dernier jour doit être après le premier jour.';
+        return;
+      }
+      const d = dureeFromDates(dureeDebut(), fin.value);
+      box.querySelector('.duree-n').value = d.n;
+      box.querySelectorAll('.duree-units button').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-unit') === d.unit); });
+      box.querySelector('.duree-fin').textContent = 'Jusqu’au ' + fmtDate(fin.value, 'long');
+    });
+  }
+  syncDuree();
 }
 
 /* Les montants proposés : ceux de base, plus ceux que Yvo utilise déjà. Rien à régler. */
@@ -73,18 +155,16 @@ function openCartePicker(clientId) {
   const id = esc(clientId);
   openModal({
     cls: 'simple-sheet carte-picker',
-    title: 'Combien par jour ?',
+    title: 'Ajouter une carte',
     subtitle: esc(client.nom),
+    noAutofocus: true,
     body:
-      '<div class="carte-tiles">' + carteAmounts().map(function (a, i) {
+      '<div class="field"><span>Pendant combien de temps ?</span>' + dureeHTML(1, 'mois') + '</div>' +
+      '<div class="field"><span>Combien par jour ?</span><div class="carte-tiles">' + carteAmounts().map(function (a, i) {
         return '<button type="button" class="carte-tile t' + (i % 6) + '" data-action="carte-pick" data-client="' + id + '" data-montant="' + a + '"><strong>' + esc(numberFR(a)) + '</strong><span>' + esc(db.settings.devise) + ' par jour</span></button>';
       }).join('') +
-      '<button type="button" class="carte-tile autre" data-action="carte-autre" data-client="' + id + '"><strong>Autre</strong><span>montant</span></button></div>' +
-      '<div class="picker-duree"><span>Pendant</span>' +
-        [[1, '1 mois'], [3, '3 mois'], [6, '6 mois'], [12, '1 an']].map(function (o, i) {
-          return '<button type="button" class="chip' + (i === 0 ? ' active' : '') + '" data-action="picker-duree" data-mois="' + o[0] + '">' + o[1] + '</button>';
-        }).join('') +
-      '</div>'
+      '<button type="button" class="carte-tile autre" data-action="carte-autre" data-client="' + id + '"><strong>Autre</strong><span>montant</span></button></div></div>',
+    onMount: mountDuree
   });
 }
 
@@ -102,9 +182,13 @@ function openCarteModal(clientId, carte, autreMontant) {
     notes: ''
   };
   const active = !isEdit || c.statut === 'active';
+  const duree = dureeFromDates(c.dateDebut, c.dateFin);
   openModal({
+    cls: 'simple-sheet carte-form',
     title: isEdit ? 'Changer cette carte' : 'Ajouter une carte',
     subtitle: esc(client.nom),
+    noAutofocus: isEdit,
+    onMount: mountDuree,
     body:
       '<form id="form-carte" data-form="save-carte" autocomplete="off">' +
         '<input type="hidden" name="clientId" value="' + esc(clientId) + '">' +
@@ -113,11 +197,7 @@ function openCarteModal(clientId, carte, autreMontant) {
         '<input type="hidden" name="notes" value="' + esc(c.notes || '') + '">' +
         '<label class="field big-field"><span>Combien par jour ?</span><div class="input-suffix"><input name="montantJournalier" type="number" inputmode="numeric" min="1" step="1" required value="' + (c.montantJournalier || '') + '" placeholder="1000"' + (isEdit ? '' : ' data-autofocus') + '><span>' + esc(db.settings.devise) + '</span></div></label>' +
         '<label class="field"><span>Premier jour</span><input name="dateDebut" id="carte-debut" type="date" required value="' + esc(c.dateDebut) + '"></label>' +
-        '<div class="field"><span>Pendant combien de temps ?</span><div class="simple-chips">' +
-          [[1, '1 mois'], [3, '3 mois'], [6, '6 mois'], [12, '1 an']].map(function (o) {
-            return '<button type="button" class="chip" data-action="carte-duree" data-mois="' + o[0] + '">' + o[1] + '</button>';
-          }).join('') +
-        '</div></div>' +
+        '<div class="field"><span>Pendant combien de temps ?</span>' + dureeHTML(duree.n, duree.unit) + '</div>' +
         '<label class="field"><span>Dernier jour</span><input name="dateFin" id="carte-fin" type="date" required value="' + esc(c.dateFin) + '"></label>' +
       '</form>',
     footer:
@@ -198,19 +278,15 @@ function openOperationModal(type) {
   const isIn = type === 'entree';
   openModal({
     cls: 'simple-sheet',
-    title: isIn ? 'J’ai reçu de l’argent' : 'J’ai dépensé de l’argent',
+    title: isIn ? 'Entrée d’argent' : 'Sortie d’argent',
     body:
       '<form id="form-operation" data-form="save-operation" autocomplete="off">' +
         '<input type="hidden" name="type" value="' + (isIn ? 'entree' : 'sortie') + '">' +
         '<input type="hidden" name="date" value="' + todayISO() + '">' +
         '<label class="field big-field"><span>Combien ?</span><div class="input-suffix"><input name="montant" type="number" inputmode="numeric" min="1" step="1" required placeholder="0" data-autofocus><span>' + esc(db.settings.devise) + '</span></div></label>' +
         '<label class="field"><span>' + (isIn ? 'D’où vient cet argent ?' : 'C’est pour quoi ?') + '</span><input name="libelle" required placeholder="' + (isIn ? 'Ex. mon argent à moi' : 'Ex. transport') + '"></label>' +
-        (isIn
-          ? '<input type="hidden" name="categorie" value="apport">'
-          : '<div class="field"><span>C’est…</span><div class="simple-radio">' +
-              '<label><input type="radio" name="categorie" value="depense" checked><span>Une dépense</span></label>' +
-              '<label><input type="radio" name="categorie" value="prelevement"><span>Pour moi</span></label>' +
-            '</div></div>') +
+        '<input type="hidden" name="categorie" value="' + (isIn ? 'apport' : 'depense') + '">' +
+        (isIn ? '<button type="button" class="btn ghost simple-minor" data-action="go" data-href="#/clients">C’est un client qui paie ? Aller à ses clients</button>' : '') +
       '</form>',
     footer: '<button type="submit" form="form-operation" class="btn primary simple-big">Enregistrer</button>'
   });

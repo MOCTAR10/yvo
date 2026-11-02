@@ -14,14 +14,12 @@ test.describe('Avance d’argent', () => {
   });
   test.afterEach(() => expect(errors).toEqual([]));
 
-  test('donner une avance avec 10 % de frais : la carte doit de l’argent, reçu à signer', async ({ page }) => {
+  test('donner une avance, sans aucun frais : la carte doit de l’argent, reçu à signer', async ({ page }) => {
     const before = await page.evaluate(id => { const t = cardTotals(carteById(id)); return { solde: t.solde, caisse: cashBalance() }; }, carte.id);
     const montant = before.solde + 20000;
     await page.evaluate(c => openPretModal(c.clientId, c.id), carte);
     await page.fill('#pret-montant', String(montant));
-    await page.click('#form-pret .form-more summary');
-    await page.fill('#pret-frais', '10');
-    await page.selectOption('#pret-frais-type', 'pct');
+    await expect(page.locator('.modal')).not.toContainText(/frais|commission/i);
     await expect(page.locator('#pret-preview .total')).toContainText('rembourser');
     await page.locator('.mode-opt.mode-moov').click();
     await page.click('button[form="form-pret"]');
@@ -31,15 +29,26 @@ test.describe('Avance d’argent', () => {
       const t = cardTotals(carteById(id));
       return { op, solde: t.solde, reste: t.resteARembourser, caisse: cashBalance() };
     }, carte.id);
-    const frais = Math.round(montant * 0.1);
-    expect(r.op).toMatchObject({ type: 'sortie', montant, frais, mode: 'Moov Money', carteId: carte.id });
+    expect(r.op).toMatchObject({ type: 'sortie', montant, frais: 0, mode: 'Moov Money', carteId: carte.id });
     expect(r.solde).toBe(0);
-    expect(r.reste).toBe(montant + frais - before.solde);
+    expect(r.reste).toBe(montant - before.solde);
     expect(r.caisse).toBe(before.caisse - montant);
 
     await page.evaluate(id => openReceipt(id), r.op.id);
     await expect(page.locator('.receipt-title')).toHaveText('Reçu d’avance d’argent');
     await expect(page.locator('.receipt-note')).toContainText('rembourse par mes cotisations');
+  });
+
+  test('une ancienne avance avec des frais garde ses comptes et son reçu', async ({ page }) => {
+    const r = await page.evaluate(id => {
+      const k = carteById(id);
+      const avant = cardTotals(k).solde;
+      db.operations.push({ id: 'op_vieux', type: 'sortie', categorie: 'pret', montant: 1000, frais: 100, fraisRegle: { type: 'fixe', valeur: 100 }, carteId: id, clientId: k.clientId, date: todayISO(), mode: 'Espèces', recuNumero: 'R-OLD', createdAt: new Date().toISOString(), snapshot: { clientNom: 'X', carteLabel: 'Carte 1', montantJournalier: 1000, dateFin: k.dateFin, totalVerse: 0, doitApres: 0 } });
+      return avant - cardTotals(k).solde + cardTotals(k).resteARembourser;
+    }, carte.id);
+    expect(r).toBe(1100);
+    await page.evaluate(() => openReceipt('op_vieux'));
+    await expect(page.locator('.receipt-note')).toContainText('frais');
   });
 
   test('les cotisations suivantes remboursent l’avance', async ({ page }) => {

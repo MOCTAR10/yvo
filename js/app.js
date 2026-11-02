@@ -927,7 +927,7 @@ function handleForm(type, form, submitter) {
       pieceNumero: String(f.get('pieceNumero') || '').trim(),
       dateInscription: String(f.get('dateInscription') || todayISO()),
       notes: String(f.get('notes') || '').trim(),
-      actif: String(f.get('actif')) === '1'
+      actif: f.has('actif') ? String(f.get('actif')) === '1' : true
     };
     if (id) {
       const client = clientById(id);
@@ -961,9 +961,9 @@ function handleForm(type, form, submitter) {
     const montantJournalier = parseMoney(f.get('montantJournalier'));
     const dateDebut = String(f.get('dateDebut') || '');
     const dateFin = String(f.get('dateFin') || '');
-    if (montantJournalier <= 0) return toast('Le montant journalier doit être supérieur à 0.', 'error');
-    if (!dateDebut || !dateFin) return toast('Renseignez les dates de début et de fin.', 'error');
-    if (dateFin < dateDebut) return toast('La date de fin doit être après la date de début.', 'error');
+    if (montantJournalier <= 0) return toast('Écrivez combien il paie par jour.', 'error');
+    if (!dateDebut || !dateFin) return toast('Écrivez le premier et le dernier jour.', 'error');
+    if (dateFin < dateDebut) return toast('Le dernier jour doit être après le premier jour.', 'error');
     const data = {
       clientId: clientId,
       label: label,

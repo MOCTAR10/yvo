@@ -123,21 +123,29 @@ test('« Doit » ne compte que les jours passés : ne pas encore avoir payé auj
   expect(r).toMatchObject({ doit: 0, reste: 1000 });
   await goto(page, 'client/' + info.client);
   await expect(page.locator('.simple-status')).toContainText('Ne doit rien');
-  await expect(page.locator('.simple-big')).toContainText('Recevoir l’argent');
+  await page.click('.fab');
+  await expect(page.locator('.fab-item', { hasText: 'Recevoir l’argent' })).toContainText('1 000');
 });
 
-test('le gros bouton ouvre la feuille, et après paiement la page dit « Payé aujourd’hui »', async ({ page }) => {
+test('le calendrier vient tout de suite, sans gros bouton au-dessus', async ({ page }) => {
+  await openApp(page);
+  const info = await newClient(page, 0);
+  await goto(page, 'client/' + info.client);
+  await expect(page.locator('.client-page .simple-big, .client-page .simple-done')).toHaveCount(0);
+  expect((await page.locator('.simple-cal').boundingBox()).y).toBeLessThan(320);
+});
+
+test('le bouton + ouvre la feuille, et après paiement le jour devient vert', async ({ page }) => {
   const errors = await openApp(page);
   const info = await newClient(page, 0);
   await goto(page, 'client/' + info.client);
-  const btn = page.locator('.simple-big');
-  expect((await btn.boundingBox()).height).toBeGreaterThanOrEqual(56);
-  await btn.click();
+  await page.click('.fab');
+  await page.locator('.fab-item', { hasText: 'Recevoir l’argent' }).click();
   await page.locator('.mode-opt.mode-moov').click();
   await page.click('button[form="form-pay"]');
   await expect(page.locator('.paid-ok')).toContainText('Moov');
   await page.click('.paid-sheet [data-action="close-modal"]');
-  await expect(page.locator('.simple-done')).toContainText('Payé aujourd’hui');
+  await expect(page.locator('.cal-day.today')).toHaveClass(/d-paye/);
   expect(await page.evaluate(i => versementModes(versementFor(i, todayISO())).moov, info.carte)).toBe(1000);
   expect(errors).toEqual([]);
 });
@@ -180,12 +188,59 @@ test('les détails restent fermés au départ et restent ouverts après un nouve
   await expect(page.locator('details[data-sec="infos"]')).toHaveAttribute('open', '');
 });
 
-test('le bouton Appeler ouvre le téléphone', async ({ page }) => {
+test('plus de boutons Appeler ni WhatsApp sur la page du client', async ({ page }) => {
   await openApp(page);
   const info = await newClient(page);
   await goto(page, 'client/' + info.client);
-  await expect(page.locator('.simple-contact a.contact-btn.call')).toHaveAttribute('href', /^tel:/);
-  await expect(page.locator('.simple-contact a.contact-btn.wa')).toHaveAttribute('href', /^https:\/\/wa\.me\//);
+  await expect(page.locator('.simple-cal')).toBeVisible();
+  await expect(page.locator('#view a[href^="tel:"], #view a[href*="wa.me"]')).toHaveCount(0);
+});
+
+test('recevoir l’argent carte par carte', async ({ page }) => {
+  const errors = await openApp(page);
+  const info = await newClient(page, 0);
+  const deux = await page.evaluate(i => {
+    const k = { id: 'k2_' + i.carte, clientId: i.client, label: 'Carte 2', montantJournalier: 500, dateDebut: i.t, dateFin: addDays(i.t, 40), statut: 'active' };
+    db.cartes.push(k); saveDB();
+    return k.id;
+  }, info);
+  await goto(page, 'client/' + info.client);
+  const recevoir = page.locator('.fab-item', { hasText: 'Recevoir l’argent' });
+  const chips = page.locator('.card-switch .chip');
+
+  // chaque carte a son montant : jamais le total des deux
+  await page.click('.fab');
+  await expect(recevoir).toContainText('1 000');
+  await expect(recevoir).not.toContainText('1 500');
+  await page.evaluate(() => closeModal());
+  await page.click('.card-switch [data-carte="' + deux + '"]');
+  await page.click('.fab');
+  await expect(recevoir).toContainText('500');
+  await expect(recevoir).not.toContainText('1 500');
+
+  // payer la carte 2 ne touche pas la carte 1
+  await recevoir.click();
+  await expect(page.locator('.modal')).toContainText('Carte 2');
+  await expect(page.locator('#form-pay .pay-input')).toHaveCount(1);
+  await page.click('button[form="form-pay"]');
+  await page.click('.paid-sheet [data-action="close-modal"]');
+  await expect(page.locator('.cal-day.today')).toHaveClass(/d-paye/);
+  await expect(chips.nth(1)).toContainText('✓');
+  await expect(chips.nth(0)).not.toContainText('✓');
+  expect(await page.evaluate(i => versementFor(i.carte, i.t), info)).toBeFalsy();
+  expect(await page.evaluate(([id, t]) => versementFor(id, t).montant, [deux, info.t])).toBe(500);
+
+  // la carte 1 attend toujours, et le client reste « Pas encore payé »
+  await page.click('.card-switch [data-carte="' + info.carte + '"]');
+  expect(await page.evaluate(id => clientStatus(clientById(id)).reste, info.client)).toBe(1000);
+
+  // le bouton + reçoit pour la carte affichée
+  await page.click('.fab');
+  await expect(recevoir).toContainText('1 000');
+  await recevoir.click();
+  await expect(page.locator('#form-pay .pay-input')).toHaveCount(1);
+  await expect(page.locator('#pay-' + info.carte)).toHaveValue('1000');
+  expect(errors).toEqual([]);
 });
 
 test('la page ne déborde pas sur les côtés', async ({ page }) => {

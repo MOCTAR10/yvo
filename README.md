@@ -12,7 +12,7 @@ L'application marche **sans réseau** sur le téléphone. Dès que le réseau re
 - **Profil prérempli** : Yvo, 077814766. Il n'y a pas d'écran de configuration.
 - **Mode de paiement** à chaque pointage : Espèces, Airtel Money ou Moov Money (avec les vrais logos). La référence est facultative. On peut filtrer la trésorerie par mode, et la clôture affiche ce qui est arrivé sur Airtel et sur Moov.
 - **Fiche client** : chaque carte est dessinée avec son calendrier. Un ✓ marque un jour pointé et un ✕ un jour non versé. La fiche a aussi les boutons Appeler / WhatsApp et « Encaisser aujourd'hui ».
-- **Avance d'argent** : Yvo peut donner à un client plus que ce qu'il a cotisé. L'avance a des frais au choix (montant ou %) et un reçu. Le client rembourse par ses prochaines cotisations. Une alerte s'affiche si l'avance dépasse ce que la carte peut rembourser.
+- **Avance d'argent** : Yvo peut donner à un client plus que ce qu'il a cotisé. L'avance a un reçu et aucun frais : Yvo gère lui-même ce qu'il prend. Le client rembourse par ses prochaines cotisations. Une alerte s'affiche si l'avance dépasse ce que la carte peut rembourser.
 - **Données sur le serveur** : PostgreSQL. Les sauvegardes, imports et exports JSON ont été retirés ; les exports Excel restent.
 
 ---
@@ -55,7 +55,7 @@ Les tests utilisent la base `yvo_test` (ou `TEST_DATABASE_URL`), remise à zéro
 | Total cotisé | Somme des versements enregistrés |
 | Reste à cotiser | `max(0, objectif − total cotisé)` |
 | Retard à ce jour | `max(0, jours écoulés × journalier − total cotisé)` |
-| Solde de la carte | `total cotisé − commissions − retiré − avances − frais d'avance` |
+| Solde de la carte | `total cotisé − retiré − avances` (les anciennes avances gardent leurs frais) |
 | Reste à rembourser | partie négative du solde (le client doit encore) |
 | Caisse | `fonds initial + toutes les entrées − toutes les sorties` |
 

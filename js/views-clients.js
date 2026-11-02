@@ -7,8 +7,17 @@
 /* Où en est un client aujourd'hui :
    doit  = ce qui manque sur les jours passés
    reste = ce qu'il peut encore payer aujourd'hui */
-function clientStatus(client) {
+function cardToday(carte, client) {
   const t = todayISO();
+  const v = versementFor(carte.id, t);
+  const recu = v ? Number(v.montant) || 0 : 0;
+  const retard = cardTotals(carte).retard;
+  const due = dueOn(carte, t) && client.actif !== false;
+  const reste = due ? Math.min(Math.max(0, (Number(carte.montantJournalier) || 0) - recu), retard) : 0;
+  return { due: due, recu: recu, reste: reste, retard: retard };
+}
+
+function clientStatus(client) {
   let doit = 0;
   let reste = 0;
   let aPayeAujourdhui = false;
@@ -16,15 +25,10 @@ function clientStatus(client) {
   cartesOf(client.id).forEach(function (c) {
     if (c.statut !== 'active') return;
     actives += 1;
-    const tot = cardTotals(c);
-    const v = versementFor(c.id, t);
-    const recu = v ? Number(v.montant) || 0 : 0;
-    if (recu > 0) aPayeAujourdhui = true;
-    const duJour = dueOn(c, t) && client.actif !== false
-      ? Math.min(Math.max(0, (Number(c.montantJournalier) || 0) - recu), tot.retard)
-      : 0;
-    reste += duJour;
-    doit += tot.retard - duJour;
+    const d = cardToday(c, client);
+    if (d.recu > 0) aPayeAujourdhui = true;
+    reste += d.reste;
+    doit += d.retard - d.reste;
   });
   return { doit: doit, reste: reste, aPayeAujourdhui: aPayeAujourdhui, actives: actives };
 }
@@ -47,12 +51,14 @@ function clientRowHTML(client, st) {
 
 function viewClients() {
   const search = state.clientSearch.trim().toLowerCase();
+  const quartiers = quartiersList();
+  if (quartiers.indexOf(state.clientQuartier) < 0) state.clientQuartier = 'tous';
   const status = {};
   db.clients.forEach(function (c) { status[c.id] = clientStatus(c); });
 
   const list = db.clients.filter(function (c) {
     if (search && [c.nom, c.telephone, c.telephone2, c.quartier].filter(Boolean).join(' ').toLowerCase().indexOf(search) < 0) return false;
-    if (state.clientQuartier !== 'tous' && (c.quartier || 'Non classé') !== state.clientQuartier) return false;
+    if (state.clientQuartier !== 'tous' && (String(c.quartier || '').trim() || 'Non classé') !== state.clientQuartier) return false;
     if (state.clientEtat === 'apayer') return status[c.id].reste > 0;
     if (state.clientEtat === 'doit') return status[c.id].doit > 0 && c.actif !== false;
     return true;
@@ -61,21 +67,17 @@ function viewClients() {
   const chips = [['tous', 'Tous'], ['apayer', 'Pas encore payé'], ['doit', 'Doit de l’argent']].map(function (e) {
     return '<button type="button" class="chip' + (state.clientEtat === e[0] ? ' active' : '') + '" data-action="client-etat" data-etat="' + e[0] + '">' + e[1] + '</button>';
   }).join('');
-  const quartiers = quartiersList();
 
   return '<div class="page simple-page">' +
     '<h1 class="simple-title">Clients</h1>' +
     '<div class="search-box simple-search">' + icon('search', 19) +
       '<input id="client-search" type="search" placeholder="Chercher un client" aria-label="Chercher un client" value="' + esc(state.clientSearch) + '" autocomplete="off">' +
     '</div>' +
-    '<div class="simple-chips">' + chips +
-      (quartiers.length > 1
-        ? '<select id="client-quartier" class="chip chip-select' + (state.clientQuartier !== 'tous' ? ' active' : '') + '" aria-label="Quartier">' +
-            '<option value="tous">Quartier</option>' +
-            quartiers.map(function (q) { return '<option value="' + esc(q) + '"' + (state.clientQuartier === q ? ' selected' : '') + '>' + esc(q) + '</option>'; }).join('') +
-          '</select>'
-        : '') +
-    '</div>' +
+    '<div class="simple-chips">' + chips + '</div>' +
+    '<select id="client-quartier" class="chip chip-select quartier-filter' + (state.clientQuartier !== 'tous' ? ' active' : '') + '" aria-label="Quartier">' +
+      '<option value="tous">Tous les quartiers</option>' +
+      quartiers.map(function (q) { return '<option value="' + esc(q) + '"' + (state.clientQuartier === q ? ' selected' : '') + '>' + esc(q === 'Non classé' ? 'Sans quartier' : q) + '</option>'; }).join('') +
+    '</select>' +
     (list.length
       ? '<div class="crow2-list">' + list.map(function (c) { return clientRowHTML(c, status[c.id]); }).join('') + '</div>'
       : '<div class="panel">' + emptyState(
@@ -206,9 +208,6 @@ function viewClient(id) {
   const st = clientStatus(client);
   const cards = cartesOf(client.id).sort(function (a, b) { return a.dateDebut.localeCompare(b.dateDebut); });
   const carte = selectedCard(client);
-  const t = todayISO();
-  const dueToday = cards.some(function (c) { return dueOn(c, t); }) && client.actif !== false;
-  const msg = 'Bonjour ' + client.nom + ', ' + (st.doit > 0 ? 'il reste ' + money(st.doit) + ' à payer.' : 'merci pour votre paiement.') + ' — ' + (db.settings.company.nom || '');
 
   const paiements = recentPaymentsOf(client, 50);
   const donne = db.operations.filter(function (o) {
@@ -225,19 +224,16 @@ function viewClient(id) {
   return '<div class="page simple-page client-page">' +
     '<a class="back-link desktop-only" href="#/clients">' + icon('arrow-left', 16) + ' Clients</a>' +
     '<h1 class="simple-title desktop-only">' + esc(client.nom) + '</h1>' +
-    (client.telephone ? '<div class="simple-contact">' + contactButtons(client, msg, false) + '</div>' : '') +
     '<div class="simple-status ' + (st.doit > 0 ? 'late' : 'ok') + '">' +
       '<strong>' + (st.doit > 0 ? 'Doit ' + esc(money(st.doit)) : '✓ Ne doit rien') + '</strong>' +
       (tot.resteARembourser > 0
         ? '<span>Doit rembourser ' + esc(money(tot.resteARembourser)) + '</span>'
         : '<span>Son argent : ' + esc(money(tot.solde)) + '</span>') +
     '</div>' +
-    (st.reste > 0
-      ? '<button type="button" class="btn primary simple-big" data-action="open-pay" data-client="' + esc(client.id) + '" data-date="' + esc(t) + '">Recevoir l’argent · ' + esc(money(st.reste)) + '</button>'
-      : (dueToday && st.aPayeAujourdhui ? '<div class="simple-done">✓ Payé aujourd’hui</div>' : '')) +
     (cards.length > 1
       ? '<div class="simple-chips card-switch">' + cards.map(function (c) {
-          return '<button type="button" class="chip' + (carte && c.id === carte.id ? ' active' : '') + '" data-action="client-card" data-client="' + esc(client.id) + '" data-carte="' + esc(c.id) + '">' + esc(c.label) + ' · ' + esc(money(c.montantJournalier, true)) + '</button>';
+          const d = c.statut === 'active' ? cardToday(c, client) : null;
+          return '<button type="button" class="chip' + (carte && c.id === carte.id ? ' active' : '') + '" data-action="client-card" data-client="' + esc(client.id) + '" data-carte="' + esc(c.id) + '">' + (d && d.due && d.recu > 0 && d.reste <= 0 ? '✓ ' : '') + esc(c.label) + ' · ' + esc(money(c.montantJournalier, true)) + '</button>';
         }).join('') + '</div>'
       : '') +
     (carte

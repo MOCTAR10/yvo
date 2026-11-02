@@ -42,15 +42,18 @@ function handleExtraAction(action, el) {
     case 'carte-autre':
       openCarteModal(el.getAttribute('data-client'), null, true);
       return true;
-    case 'picker-duree':
-      document.querySelectorAll('[data-action="picker-duree"]').forEach(function (b) { b.classList.toggle('active', b === el); });
-      return true;
-    case 'carte-duree': {
-      const form = document.getElementById('form-carte');
-      if (form) form.elements.dateFin.value = endAfterMonths(form.elements.dateDebut.value || todayISO(), el.getAttribute('data-mois'));
-      form.querySelectorAll('[data-action="carte-duree"]').forEach(function (b) { b.classList.toggle('active', b === el); });
+    case 'duree-step': {
+      const input = document.querySelector('.duree-n');
+      if (input) {
+        input.value = Math.min(999, Math.max(1, (Math.round(Number(input.value)) || 1) + Number(el.getAttribute('data-delta'))));
+        syncDuree();
+      }
       return true;
     }
+    case 'duree-unit':
+      document.querySelectorAll('.duree-units button').forEach(function (b) { b.classList.toggle('active', b === el); });
+      syncDuree();
+      return true;
     case 'reload':
       location.reload();
       return true;
@@ -148,9 +151,9 @@ function addCarteFromPicker(el) {
   const montant = Number(el.getAttribute('data-montant')) || 0;
   const client = clientById(clientId);
   if (!client || montant <= 0) return;
-  const choix = document.querySelector('[data-action="picker-duree"].active');
+  const box = document.querySelector('.duree');
   const debut = todayISO();
-  const fin = endAfterMonths(debut, choix ? choix.getAttribute('data-mois') : 1);
+  const fin = box ? dureeFin(box) : endAfterMonths(debut, 1);
   const carte = {
     id: uid('ca'), statut: 'active', createdAt: new Date().toISOString(), clientId: clientId,
     label: 'Carte ' + (cartesOf(clientId).length + 1), montantJournalier: montant, dateDebut: debut, dateFin: fin, notes: ''

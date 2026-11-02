@@ -3,21 +3,16 @@
 /* ============================================================
    YVO Épargne — avance d'argent à un client
    Yvo peut donner à un client plus que ce qu'il a cotisé.
-   L'avance (et ses frais éventuels) se rembourse toute seule
+   L'avance se rembourse toute seule
    par les cotisations suivantes de la carte : tant qu'elle
    n'est pas remboursée, la carte « doit » de l'argent.
-   Opération : { type: 'sortie', categorie: 'pret', montant, frais, ... }
+   Opération : { type: 'sortie', categorie: 'pret', montant, ... }
+   Yvo gère lui-même ce qu'il prend : on ne crée plus de frais. Une
+   ancienne avance garde les siens (voir clientTotals et son reçu).
    ============================================================ */
 
 function pretsOf(carteId) {
   return db.operations.filter(function (o) { return o.categorie === 'pret' && o.carteId === carteId; });
-}
-
-/* Frais : montant fixe ou pourcentage de l'avance (arrondi au franc). */
-function pretFrais(montant, fraisType, fraisValeur) {
-  const v = Number(fraisValeur) || 0;
-  if (v <= 0) return 0;
-  return fraisType === 'pct' ? Math.round((Number(montant) || 0) * v / 100) : Math.round(v);
 }
 
 /* Ce que la carte pourra encore rembourser d'ici sa fin (cotisations attendues). */
@@ -30,9 +25,9 @@ function capaciteRemboursement(carte) {
   return jours * (Number(carte.montantJournalier) || 0);
 }
 
-function pretPreview(carte, montant, frais) {
+function pretPreview(carte, montant) {
   const tot = cardTotals(carte);
-  const doitApres = Math.max(0, montant + frais - tot.solde) + tot.resteARembourser;
+  const doitApres = Math.max(0, montant - tot.solde) + tot.resteARembourser;
   const capacite = capaciteRemboursement(carte);
   return { tot: tot, doitApres: doitApres, capacite: capacite, depasse: doitApres > capacite };
 }
@@ -60,13 +55,7 @@ function openPretModal(clientId, carteId) {
           : '<input type="hidden" name="carteId" id="pret-carte" value="' + esc(carte.id) + '">') +
         '<label class="field big-field"><span>Combien je prête ?</span><div class="input-suffix"><input id="pret-montant" name="montant" type="number" inputmode="numeric" min="1" step="1" required placeholder="0" data-autofocus><span>' + esc(db.settings.devise) + '</span></div></label>' +
         payModePicker('especes', false) +
-        '<details class="form-more"><summary>Ajouter des frais</summary>' +
-          '<div class="form-grid">' +
-            '<label class="field"><span>Frais</span><input id="pret-frais" name="fraisValeur" type="number" inputmode="numeric" min="0" step="1" placeholder="0"></label>' +
-            '<label class="field"><span>En</span><select id="pret-frais-type" name="fraisType"><option value="fixe">' + esc(db.settings.devise) + '</option><option value="pct">%</option></select></label>' +
-          '</div>' +
-          '<label class="field"><span>Note</span><input name="note" placeholder="Ex. santé"></label>' +
-        '</details>' +
+        '<label class="field"><span>Note (pas obligatoire)</span><input name="note" placeholder="Ex. santé"></label>' +
         '<div class="pret-preview" id="pret-preview"></div>' +
       '</form>',
     footer:
@@ -76,14 +65,12 @@ function openPretModal(clientId, carteId) {
       const update = function () {
         const c = carteById(document.getElementById('pret-carte').value);
         const montant = parseMoney(document.getElementById('pret-montant').value);
-        const frais = pretFrais(montant, document.getElementById('pret-frais-type').value, document.getElementById('pret-frais').value);
         const box = document.getElementById('pret-preview');
         if (!c || !box) return;
-        const p = pretPreview(c, montant, frais);
+        const p = pretPreview(c, montant);
         box.className = 'pret-preview' + (p.depasse ? ' warn' : '');
         box.innerHTML =
           '<div><span>Son argent sur cette carte</span><strong>' + esc(money(p.tot.solde)) + '</strong></div>' +
-          (frais > 0 ? '<div><span>Frais</span><strong>' + esc(money(frais)) + '</strong></div>' : '') +
           '<div class="total"><span>Il devra rembourser</span><strong>' + esc(money(p.doitApres)) + '</strong></div>' +
           '<div><span>Ce qu’il paiera d’ici la fin de la carte</span><strong>' + esc(money(p.capacite)) + '</strong></div>' +
           (p.depasse && montant > 0
@@ -105,12 +92,8 @@ function savePret(form) {
   const montant = parseMoney(f.get('montant'));
   if (montant <= 0) return toast('Saisissez le montant donné au client.', 'error');
   if (montant > cashBalance()) return toast('Caisse insuffisante : il y a ' + money(cashBalance()) + ' en caisse.', 'error');
-  const fraisType = String(f.get('fraisType') || 'fixe');
-  const fraisValeur = Number(f.get('fraisValeur')) || 0;
-  const frais = pretFrais(montant, fraisType, fraisValeur);
-  if (fraisValeur < 0 || (fraisType === 'pct' && fraisValeur > 100) || frais > montant) return toast('Frais trop élevés : ils ne peuvent pas dépasser le montant de l’avance.', 'error');
   const mode = PAY_MODES.indexOf(String(f.get('mode'))) >= 0 ? String(f.get('mode')) : 'especes';
-  const p = pretPreview(carte, montant, frais);
+  const p = pretPreview(carte, montant);
   const now = new Date().toISOString();
   const op = {
     id: uid('op'),
@@ -118,8 +101,7 @@ function savePret(form) {
     categorie: 'pret',
     libelle: 'Avance d’argent · ' + carte.label,
     montant: montant,
-    frais: frais,
-    fraisRegle: fraisValeur > 0 ? { type: fraisType, valeur: fraisValeur } : null,
+    frais: 0,
     date: todayISO(),
     mode: PAY_MODE_LABELS[mode],
     note: String(f.get('note') || '').trim(),
@@ -136,7 +118,7 @@ function savePret(form) {
   };
   db.operations.push(op);
   logActivity('paiement', 'Avance d’argent de ' + money(montant) + ' à ' + client.nom + ' en ' + PAY_MODE_LABELS[mode] +
-    (frais > 0 ? ' (frais ' + money(frais) + ')' : '') + ' · à rembourser : ' + money(p.doitApres),
+    ' · à rembourser : ' + money(p.doitApres),
     { clientId: client.id, carteId: carte.id, montant: montant });
   saveDB();
   closeModal();

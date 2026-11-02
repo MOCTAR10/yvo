@@ -5,7 +5,7 @@
    ============================================================ */
 
 const DB_KEY = 'yvo.epargne.db.v1';
-const APP_VERSION = '4.0.1';
+const APP_VERSION = '4.0.3';
 const DB_SCHEMA = 2;
 const CURRENCIES = ['FCFA', '€', '$', 'MAD', 'GNF', 'CDF', 'CHF'];
 

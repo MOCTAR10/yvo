@@ -1,13 +1,11 @@
 'use strict';
 
 function relanceRowHTML(client, risk) {
-  const msg = 'Bonjour ' + client.nom + ', il reste ' + money(risk.retard) + ' à payer. Merci. — ' + (db.settings.company.nom || '');
-  return '<div class="relance">' +
-    '<a class="relance-main" href="#/client/' + esc(client.id) + '">' +
-      '<span><strong>' + esc(client.nom) + '</strong><em>' + esc(client.quartier || '') + '</em></span></a>' +
-    '<div class="relance-side"><strong class="red">Doit ' + esc(money(risk.retard, true)) + '</strong></div>' +
-    '<div class="relance-contact">' + contactButtons(client, msg, true) + '</div>' +
-  '</div>';
+  return '<a class="relance" href="#/client/' + esc(client.id) + '">' +
+    '<span class="relance-main"><span><strong>' + esc(client.nom) + '</strong>' +
+      '<em>' + esc([client.telephone, client.quartier].filter(Boolean).join(' · ')) + '</em></span></span>' +
+    '<span class="relance-side"><strong class="red">Doit ' + esc(money(risk.retard, true)) + '</strong></span>' +
+  '</a>';
 }
 
 function viewRisques() {

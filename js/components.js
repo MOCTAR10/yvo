@@ -111,15 +111,6 @@ function statutBadge(statut) {
   return badge(STATUT_LABELS[statut] || statut, STATUT_TONES[statut] || 'gray');
 }
 
-/* Boutons Appeler / WhatsApp pour un client */
-function contactButtons(client, message, compact) {
-  if (!client || !client.telephone) return '';
-  const tel = String(client.telephone).replace(/[^\d+]/g, '');
-  const wa = waLink(client.telephone, message || '');
-  return '<a class="contact-btn call" href="tel:' + esc(tel) + '" aria-label="Appeler ' + esc(client.nom) + '">' + icon('phone', 16) + (compact ? '' : '<span>Appeler</span>') + '</a>' +
-    (wa ? '<a class="contact-btn wa" href="' + esc(wa) + '" target="_blank" rel="noopener" aria-label="WhatsApp ' + esc(client.nom) + '">' + icon('message', 16) + (compact ? '' : '<span>WhatsApp</span>') + '</a>' : '');
-}
-
 function statusBadge(carte) {
   if (carte.statut === 'cloturee') return badge('Clôturée', 'gray');
   if (carte.statut === 'archivee') return badge('Archivée', 'gray');
@@ -154,7 +145,7 @@ function openModal(opts) {
   document.body.classList.add('modal-open');
   if (typeof opts.onMount === 'function') opts.onMount();
   setTimeout(function () {
-    const first = root.querySelector('[data-autofocus], .modal-body input:not([type="hidden"]), .modal-body select, .modal-body textarea, .modal-body button') ||
+    const first = opts.noAutofocus ? null : root.querySelector('[data-autofocus], .modal-body input:not([type="hidden"]), .modal-body select, .modal-body textarea, .modal-body button') ||
       root.querySelector('.modal-foot .btn.ghost, .modal-foot .btn, .modal-head .icon-btn');
     if (first) {
       try { first.focus({ preventScroll: true }); } catch (err) { first.focus(); }

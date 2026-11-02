@@ -12,8 +12,8 @@ function fabItems() {
   const route = state.route || parseHash();
   if (route.name === 'tresorerie' || route.name === 'cloture') {
     return [
-      fabAction('J’ai reçu de l’argent', 'data-action="new-operation" data-type="entree"'),
-      fabAction('J’ai dépensé de l’argent', 'data-action="new-operation" data-type="sortie"'),
+      fabAction('Entrée d’argent', 'data-action="new-operation" data-type="entree"'),
+      fabAction('Sortie d’argent', 'data-action="new-operation" data-type="sortie"'),
       fabAction('Rendre l’argent à un client', 'data-action="new-retrait"'),
       fabAction('Compter mon argent', 'data-action="go" data-href="#/cloture"')
     ];
@@ -23,9 +23,10 @@ function fabItems() {
     const id = esc(client.id);
     const carte = selectedCard(client);
     const t = todayISO();
-    const dueToday = client.actif !== false && cartesOf(client.id).some(function (c) { return dueOn(c, t); });
+    const dueToday = client.actif !== false && carte && dueOn(carte, t);
+    const resteJour = dueToday ? cardToday(carte, client).reste : 0;
     return [
-      dueToday ? fabAction('Recevoir l’argent', 'data-action="open-pay" data-client="' + id + '" data-date="' + esc(t) + '"') : '',
+      dueToday ? fabAction('Recevoir l’argent' + (resteJour > 0 ? ' · ' + money(resteJour) : ''), 'data-action="open-pay" data-client="' + id + '" data-carte="' + esc(carte.id) + '" data-date="' + esc(t) + '"') : '',
       clientTotals(client).solde > 0 ? fabAction('Rendre son argent', 'data-action="new-retrait" data-client="' + id + '"' + (carte ? ' data-carte="' + esc(carte.id) + '"' : '')) : '',
       carte && carte.statut === 'active' ? fabAction('Prêter de l’argent', 'data-action="new-pret" data-client="' + id + '" data-carte="' + esc(carte.id) + '"') : '',
       fabAction('Ajouter une carte', 'data-action="new-carte" data-client="' + id + '"'),
